@@ -8,24 +8,32 @@ Repositório: https://github.com/nilknarfsam/Lydo_PDF
 - Responder **sempre em português do Brasil**, tom informal (inclusive mensagens de progresso).
 - Código, nomes de classes e identificadores podem ficar em inglês; comentários e textos da UI em PT-BR.
 
-## Como trabalhar (orquestração)
+## Como trabalhar (orquestração com economia de tokens)
 
-O modelo principal (Opus) **orquestra**: entende o pedido, lê o código, decide a arquitetura,
-quebra em tarefas pequenas e bem especificadas, integra e verifica. Ele delega assim:
+Objetivo: **gastar pouco do limite**. O modelo principal **orquestra**: entende o pedido, decide a
+arquitetura, escreve briefings curtos, integra e verifica. Ele delega o máximo possível para
+modelos mais baratos:
 
 | Tarefa | Quem faz | Como |
 |---|---|---|
-| Arquitetura, API do pdfrx, integração entre telas, bugs difíceis | **Opus** (principal) | direto |
-| Implementar uma peça bem especificada (um widget, um repositório, uma tela simples, testes) | subagente **Sonnet** | `Agent` com `model: "sonnet"` |
-| Tarefas mecânicas (renomear, textos da UI, README, ajustes de estilo, boilerplate) | subagente **Haiku** | `Agent` com `model: "haiku"` |
-| Revisão do que foi escrito | subagente **Sonnet** | `Agent` com `model: "sonnet"`, usando o checklist de revisão abaixo |
+| Planejar, decidir arquitetura, API do pdfrx (coordenadas, `PdfViewerParams`), bugs difíceis | **principal** | direto |
+| Widgets, telas, repositórios, controllers simples, testes, textos da UI, README, estilo | subagente **Haiku** (padrão) | `Agent` com `model: "haiku"` |
+| Peça média com lógica não trivial, ou quando o Haiku errou duas vezes | subagente **Sonnet** | `Agent` com `model: "sonnet"` |
+| Revisão de mudanças grandes (fim de fase / mais de ~3 arquivos) | subagente **Sonnet** | checklist de revisão abaixo |
+
+Economia:
+- Mudança de 1 arquivo ou poucas linhas: o principal faz direto (subagente começa do zero e relê tudo, custaria mais).
+- Briefing curto e completo: caminhos exatos, assinaturas, o que é "pronto". Não mandar o subagente "explorar".
+- Não reler arquivos que já estão no contexto; ler só o trecho necessário.
+- Não pedir revisão para mudança pequena — `flutter analyze` + `flutter test` bastam.
+- Respostas finais curtas: o que mudou, o que testar, o que falta.
 
 Regras da delegação:
 - O briefing de cada subagente diz: arquivos que pode tocar, assinatura/contrato esperado, o que é "pronto" e que deve rodar `flutter analyze` no fim.
 - Dois subagentes nunca editam o mesmo arquivo ao mesmo tempo.
 - Peças independentes podem rodar em paralelo.
 - O Opus sempre confere o resultado (diff + `flutter analyze` + `flutter test`) antes de dizer que terminou.
-- Código que mexe na API do `pdfrx` (coordenadas, `PdfViewerParams`, texto da página) fica com o Opus ou o Sonnet, nunca com o Haiku.
+- Código que mexe na API do `pdfrx` (coordenadas, `PdfViewerParams`, texto da página) fica com o principal ou o Sonnet, nunca com o Haiku.
 
 ## Convenções de código (obrigatórias)
 
