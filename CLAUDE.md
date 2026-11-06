@@ -3,6 +3,12 @@
 Leitor/editor de PDF para **Android** (por enquanto só Android), em Flutter 3.47 + `pdfrx` (PDFium).
 Repositório: https://github.com/nilknarfsam/Lydo_PDF
 
+## Memória do projeto
+
+- **Antes de qualquer tarefa, leia `MEMORIA.md`**: estado atual, mapa do código, decisões e próximos passos.
+- Todo briefing de subagente começa com: "Leia `CLAUDE.md` e `MEMORIA.md` antes de começar."
+- Ao terminar uma tarefa, o principal atualiza `MEMORIA.md` (estado, próximos passos, histórico, arquivos novos no mapa). Subagentes **não** editam a MEMORIA.md, só informam o que mudou no relatório.
+
 ## Idioma
 
 - Responder **sempre em português do Brasil**, tom informal (inclusive mensagens de progresso).
