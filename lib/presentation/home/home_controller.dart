@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/result.dart';
 import '../../data/pdf_import_service.dart';
+import '../../domain/annotation_repository.dart';
 import '../../domain/document_entry.dart';
 import '../../domain/library_repository.dart';
 
@@ -79,10 +80,14 @@ String _normalize(String s) {
 
 /// Tela Arquivos: biblioteca, busca, filtros e importação de PDFs.
 class HomeController {
-  HomeController({required this.repository, required PdfImportService importService})
-      : _import = importService;
+  HomeController({
+    required this.repository,
+    required this.annotationRepository,
+    required PdfImportService importService,
+  }) : _import = importService;
 
   final LibraryRepository repository;
+  final AnnotationRepository annotationRepository;
   final PdfImportService _import;
   final state = ValueNotifier(const HomeState());
 
@@ -141,6 +146,7 @@ class HomeController {
 
   Future<void> remove(DocumentEntry entry) async {
     await repository.remove(entry.id);
+    await annotationRepository.delete(entry.id);
     await load();
   }
 

@@ -2,10 +2,14 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import '../../domain/annotation.dart';
+import '../../domain/annotation_repository.dart';
 import '../../domain/document_entry.dart';
 import '../../domain/library_repository.dart';
 import '../settings/settings_controller.dart';
 import '../theme/lydo_theme.dart';
+import 'annotation_controller.dart';
+import 'annotation_layer.dart';
 import 'reader_controller.dart';
 
 /// Inverte as cores da página (fundo preto, letra clara) para ler à noite.
@@ -27,11 +31,13 @@ class ReaderPage extends StatefulWidget {
     super.key,
     required this.entry,
     required this.repository,
+    required this.annotationRepository,
     required this.settings,
   });
 
   final DocumentEntry entry;
   final LibraryRepository repository;
+  final AnnotationRepository annotationRepository;
   final SettingsController settings;
 
   @override
@@ -40,6 +46,7 @@ class ReaderPage extends StatefulWidget {
 
 class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   late final ReaderController _c;
+  late final AnnotationController _a;
 
   @override
   void initState() {
@@ -49,7 +56,145 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       repository: widget.repository,
       settings: widget.settings.settings.value,
     );
+    _a = AnnotationController(documentId: widget.entry.id, repository: widget.annotationRepository)
+      ..onChanged = _repaintPages;
+    _a.load().then((error) {
+      if (error != null && mounted) _snack(error);
+    });
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  void _repaintPages() {
+    if (_c.viewer.isReady) _c.viewer.invalidate();
+  }
+
+  void _snack(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  /// Toque na tela → página e ponto em coordenadas do PDF.
+  PageHit? _hitTest(Offset local) {
+    if (!_c.viewer.isReady) return null;
+    final r = _c.viewer.getPdfPageHitTestResult(local, useDocumentLayoutCoordinates: false);
+    if (r == null) return null;
+    return (page: r.page.pageNumber, point: APoint(r.offset.x, r.offset.y));
+  }
+
+  Future<void> _onPlace(AnnotationTool tool, PageHit hit) async {
+    switch (tool) {
+      case AnnotationTool.eraser:
+        if (!_a.eraseAt(hit.page, hit.point)) _snack('Nenhuma anotação neste ponto.');
+      case AnnotationTool.text:
+        final r = await _askText(title: 'Texto na página', hint: 'Escreva o texto');
+        if (r?.text case final text?) _a.addText(hit.page, hit.point, text);
+      case AnnotationTool.note:
+        final r = await _askText(title: 'Nova nota', hint: 'Escreva sua nota', multiline: true);
+        if (r?.text case final text?) _a.addNote(hit.page, hit.point, text);
+      default:
+        break;
+    }
+  }
+
+  /// Toque numa caixa de texto ou nota: editar ou excluir.
+  Future<void> _editAnnotation(Annotation a) async {
+    if (_a.tool.value == AnnotationTool.eraser) return _a.remove(a);
+    final note = a.type == AnnotationType.note;
+    final r = await _askText(
+      title: note ? 'Nota' : 'Texto',
+      initial: a.text,
+      multiline: note,
+      canDelete: true,
+    );
+    if (r == null) return;
+    if (r.delete) return _a.remove(a);
+    if (r.text != null) _a.updateText(a, r.text!);
+  }
+
+  Future<({String? text, bool delete})?> _askText({
+    required String title,
+    String initial = '',
+    String? hint,
+    bool multiline = false,
+    bool canDelete = false,
+  }) {
+    return showDialog<({String? text, bool delete})>(
+      context: context,
+      builder: (_) => _TextDialog(
+        title: title,
+        initial: initial,
+        hint: hint,
+        multiline: multiline,
+        canDelete: canDelete,
+      ),
+    );
+  }
+
+  void _showMore() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) {
+        void run(VoidCallback f) {
+          Navigator.pop(sheet);
+          f();
+        }
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                enabled: _a.canUndo.value,
+                leading: const Icon(Icons.undo),
+                title: const Text('Desfazer'),
+                onTap: () => run(_a.undo),
+              ),
+              ListTile(
+                enabled: _a.canRedo.value,
+                leading: const Icon(Icons.redo),
+                title: const Text('Refazer'),
+                onTap: () => run(_a.redo),
+              ),
+              ListTile(
+                leading: const Icon(Icons.auto_fix_normal_outlined),
+                title: const Text('Borracha'),
+                subtitle: const Text('Toque numa anotação para apagar'),
+                onTap: () => run(() => _a.tool.value = AnnotationTool.eraser),
+              ),
+              ListTile(
+                leading: const Icon(Icons.pan_tool_outlined),
+                title: const Text('Mover a página'),
+                subtitle: const Text('Solta a ferramenta para rolar e dar zoom'),
+                onTap: () => run(() => _a.tool.value = null),
+              ),
+              ListTile(
+                leading: const Icon(Icons.layers_clear_outlined),
+                title: Text('Limpar anotações da página ${_c.currentPage.value}'),
+                onTap: () => run(_confirmClearPage),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmClearPage() async {
+    final page = _c.currentPage.value;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text('Limpar a página $page?'),
+        content: const Text('Todas as anotações desta página serão apagadas. Dá para desfazer em seguida.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Limpar')),
+        ],
+      ),
+    );
+    if (ok == true) _a.clearPage(page);
   }
 
   @override
@@ -64,6 +209,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _c.dispose();
+    _a.dispose();
     super.dispose();
   }
 
@@ -75,20 +221,16 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
     if (page != null) await _c.goToPage(page);
   }
 
-  void _comingSoon(String what) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('$what chega na próxima versão do Lydo.')));
-  }
-
   void _onModeSelected(ReaderMode m) {
     switch (m) {
       case ReaderMode.read:
+        _a.cancelStroke();
         _c.setMode(m);
       case ReaderMode.annotate:
-        _comingSoon('O modo Anotar');
+        _c.setMode(m);
+        _c.chromeVisible.value = true;
       case ReaderMode.edit:
-        _comingSoon('O modo Editar');
+        _snack('O modo Editar chega na próxima versão do Lydo.');
     }
   }
 
@@ -102,7 +244,16 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       calculateInitialPageNumber: (document, _) => _c.initialPage(document.pages.length),
       onViewerReady: (document, _) => _c.onViewerReady(document),
       onPageChanged: _c.onPageChanged,
-      pagePaintCallbacks: [_c.searcher.pageTextMatchPaintCallback],
+      pagePaintCallbacks: [
+        (canvas, rect, page) => paintPageAnnotations(canvas, rect, page, _a.onPage(page.pageNumber)),
+        _c.searcher.pageTextMatchPaintCallback,
+      ],
+      pageOverlaysBuilder: (context, rect, page) => pageAnnotationOverlays(
+        pageRectInViewer: rect,
+        page: page,
+        list: _a.onPage(page.pageNumber),
+        onTap: _editAnnotation,
+      ),
       onGeneralTap: (_, _, details) {
         if (details.type != PdfViewerGeneralTapType.tap) return false;
         _c.toggleChrome();
@@ -128,7 +279,26 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
                   ),
                 ),
               ),
-              _Chrome(controller: _c, onAskPage: _askPage, onModeSelected: _onModeSelected),
+              Positioned.fill(
+                child: ValueListenableBuilder<ReaderMode>(
+                  valueListenable: _c.mode,
+                  builder: (_, mode, _) => mode != ReaderMode.annotate
+                      ? const SizedBox.shrink()
+                      : AnnotationGestureLayer(
+                          controller: _a,
+                          hitTest: _hitTest,
+                          onStrokeEnd: () => _a.endStroke(_c.document.value),
+                          onPlace: _onPlace,
+                        ),
+                ),
+              ),
+              _Chrome(
+                controller: _c,
+                annotations: _a,
+                onAskPage: _askPage,
+                onModeSelected: _onModeSelected,
+                onMore: _showMore,
+              ),
             ],
           ),
         ),
@@ -139,16 +309,27 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
 
 /// Barras do leitor (topo, abas, miniaturas). Some com um toque na página.
 class _Chrome extends StatelessWidget {
-  const _Chrome({required this.controller, required this.onAskPage, required this.onModeSelected});
+  const _Chrome({
+    required this.controller,
+    required this.annotations,
+    required this.onAskPage,
+    required this.onModeSelected,
+    required this.onMore,
+  });
   final ReaderController controller;
+  final AnnotationController annotations;
   final VoidCallback onAskPage;
   final ValueChanged<ReaderMode> onModeSelected;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: controller.chromeVisible,
-      builder: (context, visible, _) => Stack(
+    return ListenableBuilder(
+      listenable: Listenable.merge([controller.chromeVisible, controller.mode]),
+      builder: (context, _) {
+        final visible = controller.chromeVisible.value;
+        final annotating = controller.mode.value == ReaderMode.annotate;
+        return Stack(
         children: [
           AnimatedPositioned(
             duration: const Duration(milliseconds: 220),
@@ -179,7 +360,7 @@ class _Chrome extends StatelessWidget {
           ),
           Positioned(
             right: 16,
-            bottom: visible ? 140 : 24,
+            bottom: !visible ? 24 : (annotating ? 172 : 140),
             child: SafeArea(child: _PagePill(controller: controller, onTap: onAskPage)),
           ),
           AnimatedPositioned(
@@ -187,11 +368,72 @@ class _Chrome extends StatelessWidget {
             curve: Curves.easeOut,
             left: 0,
             right: 0,
-            bottom: visible ? 0 : -200,
-            child: RepaintBoundary(child: _ThumbnailStrip(controller: controller)),
+            bottom: visible ? 0 : -260,
+            child: RepaintBoundary(
+              // No modo Anotar a barra de ferramentas ocupa o lugar das miniaturas.
+              child: annotating
+                  ? AnnotationToolbar(controller: annotations, onMore: onMore)
+                  : _ThumbnailStrip(controller: controller),
+            ),
           ),
         ],
+      );
+      },
+    );
+  }
+}
+
+class _TextDialog extends StatefulWidget {
+  const _TextDialog({
+    required this.title,
+    required this.initial,
+    required this.hint,
+    required this.multiline,
+    required this.canDelete,
+  });
+  final String title;
+  final String initial;
+  final String? hint;
+  final bool multiline;
+  final bool canDelete;
+
+  @override
+  State<_TextDialog> createState() => _TextDialogState();
+}
+
+class _TextDialogState extends State<_TextDialog> {
+  late final _text = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _text,
+        autofocus: true,
+        minLines: widget.multiline ? 3 : 1,
+        maxLines: widget.multiline ? 6 : 1,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: InputDecoration(hintText: widget.hint),
       ),
+      actions: [
+        if (widget.canDelete)
+          TextButton(
+            onPressed: () => Navigator.pop(context, (text: null, delete: true)),
+            child: const Text('Excluir', style: TextStyle(color: LydoColors.pdfRed)),
+          ),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, (text: _text.text, delete: false)),
+          child: const Text('Salvar'),
+        ),
+      ],
     );
   }
 }

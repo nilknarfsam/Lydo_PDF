@@ -48,6 +48,7 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => ReaderPage(
           entry: entry,
           repository: _c.repository,
+          annotationRepository: _c.annotationRepository,
           settings: widget.settings,
         ),
       ),
