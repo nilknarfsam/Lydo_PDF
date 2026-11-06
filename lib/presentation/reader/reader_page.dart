@@ -2,14 +2,29 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import 'dart:async';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+
+import '../../core/annotation_renderer.dart';
+import '../../core/result.dart';
+import '../../data/pdf_edit_service.dart';
+import '../../data/stamp_import_service.dart';
 import '../../domain/annotation.dart';
 import '../../domain/annotation_repository.dart';
 import '../../domain/document_entry.dart';
 import '../../domain/library_repository.dart';
+import '../../domain/page_plan.dart';
+import '../../domain/signature_repository.dart';
+import '../edit/page_organizer_page.dart';
+import '../edit/signature_pad_page.dart';
+import '../edit/signature_picker_sheet.dart';
 import '../settings/settings_controller.dart';
 import '../theme/lydo_theme.dart';
 import 'annotation_controller.dart';
 import 'annotation_layer.dart';
+import 'edit_toolbar.dart';
 import 'reader_controller.dart';
 
 /// Inverte as cores da página (fundo preto, letra clara) para ler à noite.
@@ -32,12 +47,14 @@ class ReaderPage extends StatefulWidget {
     required this.entry,
     required this.repository,
     required this.annotationRepository,
+    required this.signatureRepository,
     required this.settings,
   });
 
   final DocumentEntry entry;
   final LibraryRepository repository;
   final AnnotationRepository annotationRepository;
+  final SignatureRepository signatureRepository;
   final SettingsController settings;
 
   @override
@@ -47,6 +64,9 @@ class ReaderPage extends StatefulWidget {
 class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   late final ReaderController _c;
   late final AnnotationController _a;
+  final _images = AnnotationImageCache();
+  final _editService = PdfEditService();
+  final _stamps = StampImportService();
 
   @override
   void initState() {
@@ -57,7 +77,10 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       settings: widget.settings.settings.value,
     );
     _a = AnnotationController(documentId: widget.entry.id, repository: widget.annotationRepository)
-      ..onChanged = _repaintPages;
+      ..onChanged = () {
+        _images.ensureLoaded(_a.annotations.value, onLoaded: _repaintPages);
+        _repaintPages();
+      };
     _a.load().then((error) {
       if (error != null && mounted) _snack(error);
     });
@@ -210,6 +233,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _c.dispose();
     _a.dispose();
+    _images.dispose();
     super.dispose();
   }
 
@@ -230,7 +254,212 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
         _c.setMode(m);
         _c.chromeVisible.value = true;
       case ReaderMode.edit:
-        _snack('O modo Editar chega na próxima versão do Lydo.');
+        _a.cancelStroke();
+        _c.setMode(m);
+        _c.chromeVisible.value = true;
+    }
+  }
+
+  // ---------- Modo Editar ----------
+
+  Future<void> _onEditAction(EditAction action) async {
+    switch (action) {
+      case EditAction.image:
+        final r = await _stamps.pickImage();
+        switch (r) {
+          case Ok(value: final asset?):
+            _startPlacing(asset);
+          case Err(:final failure):
+            _snack(failure.message);
+          case Ok():
+            break;
+        }
+      case EditAction.signature:
+        await _chooseSignature();
+      case EditAction.pages:
+        await _organizePages();
+      case EditAction.export:
+        await _export();
+    }
+  }
+
+  void _startPlacing(StampAsset asset) {
+    _c.movingImage.value = null;
+    _c.pendingStamp.value = asset;
+  }
+
+  Future<void> _chooseSignature() async {
+    final choice = await showSignaturePicker(context, widget.signatureRepository);
+    if (!mounted || choice == null) return;
+    String? path;
+    switch (choice) {
+      case UseSaved(:final signature):
+        path = signature.path;
+      case CreateNew():
+        final png = await Navigator.push<Uint8List>(
+          context,
+          MaterialPageRoute(builder: (_) => const SignaturePadPage()),
+        );
+        if (png == null) return;
+        switch (await widget.signatureRepository.save(png)) {
+          case Ok(:final value):
+            path = value.path;
+          case Err(:final failure):
+            return _snack(failure.message);
+        }
+    }
+    if (!mounted) return;
+    switch (await _stamps.fromSignature(path)) {
+      case Ok(:final value):
+        _startPlacing(value);
+      case Err(:final failure):
+        _snack(failure.message);
+    }
+  }
+
+  /// Toque na página no modo Editar: colocar, mover ou abrir opções da imagem.
+  void _onEditTap(Offset local) {
+    final hit = _hitTest(local);
+    if (hit == null) return;
+    final pending = _c.pendingStamp.value;
+    final moving = _c.movingImage.value;
+    if (pending != null) {
+      final page = _c.document.value?.pages[hit.page - 1];
+      // Assinatura nasce com ~1/3 da largura visível da página; foto com ~1/2.
+      final width = (page?.width ?? 595) * (pending.isSignature ? 0.32 : 0.5);
+      _a.placeImage(hit.page, hit.point, pending.path, pending.aspect, width, page?.rotation.index ?? 0);
+      _c.pendingStamp.value = null;
+    } else if (moving != null) {
+      _a.moveImage(moving, hit.page, hit.point);
+      _c.movingImage.value = null;
+    } else if (_a.imageAt(hit.page, hit.point) case final image?) {
+      _imageOptions(image);
+    } else {
+      _c.toggleChrome();
+    }
+  }
+
+  void _imageOptions(Annotation image) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) {
+        void run(VoidCallback f) {
+          Navigator.pop(sheet);
+          f();
+        }
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.open_with),
+                title: const Text('Mover'),
+                subtitle: const Text('Depois toque no novo lugar'),
+                onTap: () => run(() {
+                  _c.pendingStamp.value = null;
+                  _c.movingImage.value = image;
+                }),
+              ),
+              ListTile(
+                leading: const Icon(Icons.zoom_in),
+                title: const Text('Aumentar'),
+                onTap: () => run(() => _a.resizeImage(image, 1.25)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.zoom_out),
+                title: const Text('Diminuir'),
+                onTap: () => run(() => _a.resizeImage(image, 0.8)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Excluir'),
+                onTap: () => run(() => _a.remove(image)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _organizePages() async {
+    final count = _c.pageCount.value;
+    if (count == 0) return _snack('Aguarde o PDF terminar de abrir.');
+    final plan = await Navigator.push<PagePlan>(
+      context,
+      MaterialPageRoute(builder: (_) => PageOrganizerPage(pdfPath: _c.entry.path, pageCount: count)),
+    );
+    if (!mounted || plan == null || plan.isIdentity(count)) return;
+
+    _c.editBusy.value = true;
+    await _c.saveNow();
+    // Arquivo novo (em vez de sobrescrever): o leitor ainda está com o atual aberto.
+    final old = _c.entry.path;
+    final target = '${File(old).parent.path}/${_c.entry.id}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final result = await _editService.applyPagePlan(sourcePath: old, targetPath: target, plan: plan);
+    if (!mounted) return;
+    _c.editBusy.value = false;
+    if (result case Err(:final failure)) return _snack(failure.message);
+
+    // Daqui em diante este leitor não grava mais posição (senão voltaria a apontar para o arquivo antigo).
+    _c.markReplaced();
+    final firstPage = plan.newNumberOf(_c.currentPage.value) ?? 1;
+    final updated = _c.entry.copyWith(
+      path: target,
+      pageCount: plan.slots.length,
+      lastPage: firstPage,
+      viewMatrix: const [], // posição antiga não vale mais
+    );
+    // Ordem segura: anotações renumeradas → entrada nova → só então apaga o PDF antigo.
+    final savedNotes = await _a.replaceAll(remapAnnotations(_a.annotations.value, plan.newNumberOf));
+    final savedEntry = await widget.repository.save(updated);
+    if (savedNotes is Err || savedEntry is Err) {
+      _snack('Páginas reorganizadas, mas houve erro ao salvar. Abra o PDF de novo.');
+    } else {
+      try {
+        await File(old).delete();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    unawaited(Navigator.pushReplacement(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ReaderPage(
+          entry: updated,
+          repository: widget.repository,
+          annotationRepository: widget.annotationRepository,
+          signatureRepository: widget.signatureRepository,
+          settings: widget.settings,
+        ),
+      ),
+    ));
+  }
+
+  Future<void> _export() async {
+    _c.editBusy.value = true;
+    final result = await _editService.exportWithAnnotations(
+      path: _c.entry.path,
+      annotations: _a.annotations.value,
+    );
+    if (!mounted) return;
+    _c.editBusy.value = false;
+    switch (result) {
+      case Err(:final failure):
+        _snack(failure.message);
+      case Ok(:final value):
+        try {
+          final saved = await FilePicker.saveFile(
+            fileName: '${_c.entry.name} (Lydo).pdf',
+            bytes: value,
+            mimeType: 'application/pdf',
+            dialogTitle: 'Salvar PDF',
+          );
+          if (saved != null && mounted) _snack('PDF salvo com as anotações.');
+        } catch (_) {
+          if (mounted) _snack('Não foi possível salvar o PDF.');
+        }
     }
   }
 
@@ -245,7 +474,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       onViewerReady: (document, _) => _c.onViewerReady(document),
       onPageChanged: _c.onPageChanged,
       pagePaintCallbacks: [
-        (canvas, rect, page) => paintPageAnnotations(canvas, rect, page, _a.onPage(page.pageNumber)),
+        (canvas, rect, page) => paintPageAnnotations(canvas, rect, page, _a.onPage(page.pageNumber), _images),
         _c.searcher.pageTextMatchPaintCallback,
       ],
       pageOverlaysBuilder: (context, rect, page) => pageAnnotationOverlays(
@@ -256,7 +485,11 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       ),
       onGeneralTap: (_, _, details) {
         if (details.type != PdfViewerGeneralTapType.tap) return false;
-        _c.toggleChrome();
+        if (_c.mode.value == ReaderMode.edit) {
+          _onEditTap(details.localPosition);
+        } else {
+          _c.toggleChrome();
+        }
         return true;
       },
     );
@@ -298,6 +531,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
                 onAskPage: _askPage,
                 onModeSelected: _onModeSelected,
                 onMore: _showMore,
+                onEditAction: _onEditAction,
               ),
             ],
           ),
@@ -315,12 +549,14 @@ class _Chrome extends StatelessWidget {
     required this.onAskPage,
     required this.onModeSelected,
     required this.onMore,
+    required this.onEditAction,
   });
   final ReaderController controller;
   final AnnotationController annotations;
   final VoidCallback onAskPage;
   final ValueChanged<ReaderMode> onModeSelected;
   final VoidCallback onMore;
+  final ValueChanged<EditAction> onEditAction;
 
   @override
   Widget build(BuildContext context) {
@@ -328,7 +564,7 @@ class _Chrome extends StatelessWidget {
       listenable: Listenable.merge([controller.chromeVisible, controller.mode]),
       builder: (context, _) {
         final visible = controller.chromeVisible.value;
-        final annotating = controller.mode.value == ReaderMode.annotate;
+        final annotating = controller.mode.value != ReaderMode.read;
         return Stack(
         children: [
           AnimatedPositioned(
@@ -371,9 +607,20 @@ class _Chrome extends StatelessWidget {
             bottom: visible ? 0 : -260,
             child: RepaintBoundary(
               // No modo Anotar a barra de ferramentas ocupa o lugar das miniaturas.
-              child: annotating
-                  ? AnnotationToolbar(controller: annotations, onMore: onMore)
-                  : _ThumbnailStrip(controller: controller),
+              child: switch (controller.mode.value) {
+                ReaderMode.annotate => AnnotationToolbar(controller: annotations, onMore: onMore),
+                ReaderMode.edit => ListenableBuilder(
+                    listenable: Listenable.merge(
+                      [controller.pendingStamp, controller.movingImage, controller.editBusy],
+                    ),
+                    builder: (_, _) => EditToolbar(
+                      onAction: onEditAction,
+                      hint: controller.editHint,
+                      busy: controller.editBusy.value,
+                    ),
+                  ),
+                ReaderMode.read => _ThumbnailStrip(controller: controller),
+              },
             ),
           ),
         ],

@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../data/stamp_import_service.dart';
+import '../../domain/annotation.dart';
 import '../../domain/app_settings.dart';
 import '../../domain/document_entry.dart';
 import '../../domain/library_repository.dart';
@@ -41,6 +43,22 @@ class ReaderController {
   final chromeVisible = ValueNotifier(true);
   final mode = ValueNotifier(ReaderMode.read);
 
+  // ---------- Modo Editar ----------
+  /// Imagem/assinatura escolhida, esperando o toque na página.
+  final pendingStamp = ValueNotifier<StampAsset?>(null);
+
+  /// Imagem que será levada para o próximo ponto tocado.
+  final movingImage = ValueNotifier<Annotation?>(null);
+
+  /// Operação demorada em andamento (exportar, reorganizar).
+  final editBusy = ValueNotifier(false);
+
+  String? get editHint => pendingStamp.value != null
+      ? 'Toque na página onde quer colocar'
+      : movingImage.value != null
+          ? 'Toque no novo lugar da imagem'
+          : null;
+
   /// Busca aberta na barra superior.
   final searchOpen = ValueNotifier(false);
 
@@ -49,6 +67,14 @@ class ReaderController {
 
   Timer? _saveTimer;
   bool _restored = false;
+
+  /// O documento foi trocado por outro arquivo (ex.: páginas reorganizadas):
+  /// este leitor não grava mais nada, para não sobrescrever a entrada nova.
+  bool _replaced = false;
+  void markReplaced() {
+    _replaced = true;
+    _saveTimer?.cancel();
+  }
 
   DocumentEntry get entry => _entry;
   bool get horizontal => settings.scrollMode == ScrollMode.horizontal;
@@ -141,7 +167,7 @@ class ReaderController {
   // ---------- Salvamento ----------
 
   void _scheduleSave() {
-    if (!_restored) return; // não sobrescrever a posição salva antes de restaurá-la
+    if (!_restored || _replaced) return; // não sobrescrever a posição salva antes de restaurá-la
     _saveTimer?.cancel();
     _saveTimer = Timer(_saveDelay, saveNow);
   }
@@ -149,7 +175,7 @@ class ReaderController {
   /// Grava a posição imediatamente (ex.: ao sair da tela ou minimizar o app).
   Future<void> saveNow() async {
     _saveTimer?.cancel();
-    if (!_restored) return;
+    if (!_restored || _replaced) return;
     _entry = _entry.copyWith(
       lastOpenedAt: DateTime.now(),
       lastPage: currentPage.value,
@@ -175,6 +201,9 @@ class ReaderController {
       mode,
       searchOpen,
       searchStatus,
+      pendingStamp,
+      movingImage,
+      editBusy,
     ]) {
       n.dispose();
     }

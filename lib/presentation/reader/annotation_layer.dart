@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:pdfrx/pdfrx.dart';
 
+import '../../core/annotation_renderer.dart';
 import '../../domain/annotation.dart';
 import '../theme/lydo_theme.dart';
 import 'annotation_controller.dart';
@@ -10,53 +11,16 @@ const _barBorder = Color(0xFF2C3546);
 const _onBar = Colors.white;
 const _onBarMuted = Color(0xFFA3ACBD);
 
-Offset _toDoc(APoint p, PdfPage page, Rect pageRect) =>
-    PdfPoint(p.x, p.y).toOffsetInDocument(page: page, pageRect: pageRect);
-
-Rect _rectToDoc(ARect r, PdfPage page, Rect pageRect) =>
-    PdfRect(r.left, r.top, r.right, r.bottom).toRectInDocument(page: page, pageRect: pageRect);
-
-/// Pinta realces e traços de caneta da página (chamado pelo PdfViewer).
-void paintPageAnnotations(Canvas canvas, Rect pageRect, PdfPage page, Iterable<Annotation> list) {
-  final scale = pageRect.width / page.width;
-  for (final a in list) {
-    switch (a.type) {
-      case AnnotationType.highlight:
-        final paint = Paint()
-          ..color = Color(a.color).withValues(alpha: 0.45)
-          ..blendMode = BlendMode.multiply;
-        for (final r in a.rects) {
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(_rectToDoc(r, page, pageRect).inflate(scale), Radius.circular(2 * scale)),
-            paint,
-          );
-        }
-      case AnnotationType.ink:
-        final paint = Paint()
-          ..color = Color(a.color)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = a.width * scale
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-        if (a.points.length == 1) {
-          canvas.drawCircle(_toDoc(a.points.first, page, pageRect), a.width * scale / 2,
-              paint..style = PaintingStyle.fill);
-          continue;
-        }
-        final path = Path();
-        final first = _toDoc(a.points.first, page, pageRect);
-        path.moveTo(first.dx, first.dy);
-        for (final p in a.points.skip(1)) {
-          final o = _toDoc(p, page, pageRect);
-          path.lineTo(o.dx, o.dy);
-        }
-        canvas.drawPath(path, paint);
-      case AnnotationType.text:
-      case AnnotationType.note:
-        break; // são widgets tocáveis (veja pageAnnotationOverlays)
-    }
-  }
-}
+/// Pinta realces, traços e imagens da página (chamado pelo PdfViewer).
+/// Texto e notas são widgets tocáveis (veja [pageAnnotationOverlays]).
+void paintPageAnnotations(
+  Canvas canvas,
+  Rect pageRect,
+  PdfPage page,
+  Iterable<Annotation> list,
+  AnnotationImageCache images,
+) =>
+    paintAnnotations(canvas, pageRect: pageRect, page: page, annotations: list, images: images.images);
 
 /// Caixas de texto e notas como widgets por cima da página (dá para tocar e editar).
 List<Widget> pageAnnotationOverlays({

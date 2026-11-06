@@ -22,10 +22,14 @@ modelos mais baratos:
 
 | Tarefa | Quem faz | Como |
 |---|---|---|
-| Planejar, decidir arquitetura, API do pdfrx (coordenadas, `PdfViewerParams`), bugs difíceis | **principal** | direto |
-| Widgets, telas, repositórios, controllers simples, testes, textos da UI, README, estilo | subagente **Haiku** (padrão) | `Agent` com `model: "haiku"` |
-| Peça média com lógica não trivial, ou quando o Haiku errou duas vezes | subagente **Sonnet** | `Agent` com `model: "sonnet"` |
-| Revisão de mudanças grandes (fim de fase / mais de ~3 arquivos) | subagente **Sonnet** | checklist de revisão abaixo |
+| Coordenar: planejar com o Franklin, briefings, conferir cada entrega, redirecionar | **principal** + Franklin | direto |
+| Partes minuciosas/delicadas: API do pdfrx (coordenadas, `PdfViewerParams`, edição do PDF), bugs difíceis | **principal** | direto |
+| **Escrever o código** (widgets, telas, repositórios, controllers, testes, textos, estilo) | subagente **Haiku** | `Agent` com `model: "haiku"` |
+| **Revisar** cada entrega do Haiku | subagente **Sonnet** | `Agent` com `model: "sonnet"`, checklist abaixo; só aponta, não edita |
+
+Ciclo de cada tarefa: principal escreve o briefing → Haiku implementa → Sonnet revisa e lista
+problemas → principal decide o que vale corrigir e devolve ao Haiku (ou corrige se for delicado)
+→ principal roda `analyze`/`test` e confere o diff.
 
 Economia:
 - Mudança de 1 arquivo ou poucas linhas: o principal faz direto (subagente começa do zero e relê tudo, custaria mais).

@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'data/file_signature_repository.dart';
 import 'data/json_annotation_repository.dart';
 import 'data/pdf_import_service.dart';
 import 'data/prefs_library_repository.dart';
@@ -23,6 +24,7 @@ Future<void> main() async {
   final home = HomeController(
     repository: PrefsLibraryRepository(prefs),
     annotationRepository: JsonAnnotationRepository(),
+    signatureRepository: FileSignatureRepository(),
     importService: PdfImportService(),
   );
   runApp(LydoApp(home: home, settings: settings));

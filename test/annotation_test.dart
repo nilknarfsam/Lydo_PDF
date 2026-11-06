@@ -62,6 +62,34 @@ void main() {
     });
   });
 
+  test('remapAnnotations segue a nova ordem e descarta páginas excluídas', () {
+    Annotation on(int page) => _ink(const [APoint(1, 1)]).copyWith(page: page);
+    // Nova ordem: página 3 vira 1, página 1 vira 2, página 2 foi excluída.
+    int? newNumber(int p) => const {3: 1, 1: 2}[p];
+    final out = remapAnnotations([on(1), on(2), on(3)], newNumber);
+    expect(out.map((a) => a.page), [2, 1]);
+  });
+
+  test('stampRect centraliza e respeita a proporção', () {
+    final r = stampRect(const APoint(100, 200), 50, 0.5);
+    expect([r.left, r.right, r.top, r.bottom], [75, 125, 212.5, 187.5]);
+  });
+
+  test('imagem: toque dentro acerta, fora erra; JSON guarda o arquivo', () {
+    final img = Annotation(
+      id: 'm',
+      type: AnnotationType.image,
+      page: 1,
+      color: 0,
+      createdAt: DateTime(2026),
+      rects: [stampRect(const APoint(100, 100), 40, 1)],
+      assetPath: '/x/sig.png',
+    );
+    expect(img.hitTest(const APoint(110, 110), tolerance: 0), isTrue);
+    expect(img.hitTest(const APoint(200, 200), tolerance: 0), isFalse);
+    expect(Annotation.fromJson(img.toJson()).assetPath, '/x/sig.png');
+  });
+
   test('borracha acerta perto do traço e erra longe dele', () {
     final a = _ink(const [APoint(0, 0), APoint(100, 0)]);
     expect(a.hitTest(const APoint(50, 5)), isTrue);

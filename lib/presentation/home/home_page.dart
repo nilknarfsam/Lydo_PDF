@@ -49,6 +49,7 @@ class _HomePageState extends State<HomePage> {
           entry: entry,
           repository: _c.repository,
           annotationRepository: _c.annotationRepository,
+          signatureRepository: _c.signatureRepository,
           settings: widget.settings,
         ),
       ),

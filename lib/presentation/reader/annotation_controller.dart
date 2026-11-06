@@ -166,6 +166,60 @@ class AnnotationController {
     _replace(a.id, a.copyWith(text: text.trim()));
   }
 
+  // ---------- Imagens e assinaturas ----------
+
+  /// Coloca uma imagem centrada em [center], com [width] pontos de largura
+  /// **como aparece na tela**. [pageTurns] é o giro atual da página (0..3):
+  /// o retângulo é guardado em coordenadas do PDF sem giro, então em página
+  /// deitada largura e altura se invertem para a imagem ficar em pé.
+  void placeImage(int page, APoint center, String assetPath, double aspect, double width, int pageTurns) {
+    final rect = pageTurns.isOdd
+        ? stampRect(center, width * aspect, 1 / aspect)
+        : stampRect(center, width, aspect);
+    _add(Annotation(
+      id: _newId(),
+      type: AnnotationType.image,
+      page: page,
+      color: 0,
+      createdAt: DateTime.now(),
+      rects: [rect],
+      assetPath: assetPath,
+      turns: pageTurns % 4,
+    ));
+  }
+
+  /// A imagem mais recente sob o toque (para mover, redimensionar ou excluir).
+  Annotation? imageAt(int page, APoint p) => onPage(page)
+      .toList()
+      .reversed
+      .where((a) => a.type == AnnotationType.image && a.hitTest(p, tolerance: 0))
+      .firstOrNull;
+
+  void resizeImage(Annotation a, double factor) {
+    final r = a.rects.first;
+    final width = ((r.right - r.left) * factor).clamp(24.0, 2000.0);
+    final center = APoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+    _replace(a.id, a.copyWith(rects: [stampRect(center, width, r.height / (r.right - r.left))]));
+  }
+
+  void moveImage(Annotation a, int page, APoint center) {
+    final r = a.rects.first;
+    final width = r.right - r.left;
+    _replace(a.id, a.copyWith(page: page, rects: [stampRect(center, width, r.height / width)]));
+  }
+
+  /// Troca tudo sem passar pelo desfazer (ex.: depois de reorganizar páginas).
+  /// Espera a gravação terminar: quem chama vai reabrir o documento em seguida.
+  Future<Result<void>> replaceAll(List<Annotation> next) {
+    _undo.clear();
+    _redo.clear();
+    annotations.value = List.unmodifiable(next);
+    canUndo.value = false;
+    canRedo.value = false;
+    onChanged?.call();
+    return repository.save(documentId, annotations.value);
+  }
+
   // ---------- Borracha, desfazer ----------
 
   /// Borracha: apaga a anotação mais recente sob o toque.

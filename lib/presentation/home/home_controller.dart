@@ -5,6 +5,7 @@ import '../../data/pdf_import_service.dart';
 import '../../domain/annotation_repository.dart';
 import '../../domain/document_entry.dart';
 import '../../domain/library_repository.dart';
+import '../../domain/signature_repository.dart';
 
 enum LibraryFilter { all, recent, favorites }
 
@@ -83,11 +84,13 @@ class HomeController {
   HomeController({
     required this.repository,
     required this.annotationRepository,
+    required this.signatureRepository,
     required PdfImportService importService,
   }) : _import = importService;
 
   final LibraryRepository repository;
   final AnnotationRepository annotationRepository;
+  final SignatureRepository signatureRepository;
   final PdfImportService _import;
   final state = ValueNotifier(const HomeState());
 

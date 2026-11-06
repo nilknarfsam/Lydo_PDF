@@ -49,7 +49,8 @@ class ARect {
       );
 }
 
-enum AnnotationType { highlight, ink, text, note }
+/// [image] cobre fotos e assinaturas: um PNG/JPG posicionado em [Annotation.rects].first.
+enum AnnotationType { highlight, ink, text, note, image }
 
 /// Uma anotação feita pelo usuário numa página.
 class Annotation {
@@ -63,6 +64,8 @@ class Annotation {
     this.rects = const [],
     this.points = const [],
     this.text = '',
+    this.assetPath,
+    this.turns = 0,
   });
 
   final String id;
@@ -87,18 +90,35 @@ class Annotation {
   /// Texto da caixa de texto ou da nota.
   final String text;
 
+  /// Imagem/assinatura: arquivo PNG ou JPG na pasta do app.
+  final String? assetPath;
+
+  /// Imagem: giro da página (0..3, 90° horário) quando ela foi colocada.
+  /// Se a página for girada depois, a imagem gira junto com o conteúdo.
+  final int turns;
+
   APoint? get anchor => points.isEmpty ? null : points.first;
 
-  Annotation copyWith({String? text, int? color, double? width, List<APoint>? points}) => Annotation(
+  Annotation copyWith({
+    String? text,
+    int? color,
+    double? width,
+    List<APoint>? points,
+    List<ARect>? rects,
+    int? page,
+  }) =>
+      Annotation(
         id: id,
         type: type,
-        page: page,
+        page: page ?? this.page,
         color: color ?? this.color,
         createdAt: createdAt,
         width: width ?? this.width,
-        rects: rects,
+        rects: rects ?? this.rects,
         points: points ?? this.points,
         text: text ?? this.text,
+        assetPath: assetPath,
+        turns: turns,
       );
 
   /// O toque em [p] (mesma página) acerta esta anotação?
@@ -106,6 +126,8 @@ class Annotation {
     switch (type) {
       case AnnotationType.highlight:
         return rects.any((r) => r.contains(p, tolerance: tolerance / 2));
+      case AnnotationType.image:
+        return rects.any((r) => r.contains(p, tolerance: tolerance));
       case AnnotationType.ink:
         final reach = tolerance + width / 2;
         if (points.length == 1) return points.first.distanceTo(p) <= reach;
@@ -130,6 +152,8 @@ class Annotation {
         if (rects.isNotEmpty) 'rects': rects.map((r) => r.toJson()).toList(),
         if (points.isNotEmpty) 'points': points.map((p) => p.toJson()).toList(),
         if (text.isNotEmpty) 'text': text,
+        if (assetPath != null) 'assetPath': assetPath,
+        if (turns != 0) 'turns': turns,
       };
 
   factory Annotation.fromJson(Map<String, dynamic> j) => Annotation(
@@ -142,7 +166,24 @@ class Annotation {
         rects: [for (final r in (j['rects'] as List<dynamic>? ?? [])) ARect.fromJson(r as List<dynamic>)],
         points: [for (final p in (j['points'] as List<dynamic>? ?? [])) APoint.fromJson(p as List<dynamic>)],
         text: j['text'] as String? ?? '',
+        assetPath: j['assetPath'] as String?,
+        turns: j['turns'] as int? ?? 0,
       );
+}
+
+/// Depois de reorganizar páginas: leva cada anotação para a nova numeração
+/// e descarta as de páginas excluídas. As coordenadas não mudam porque são
+/// do PDF original da página (o giro é aplicado pelo próprio PDF).
+List<Annotation> remapAnnotations(List<Annotation> list, int? Function(int sourcePage) newNumberOf) => [
+      for (final a in list)
+        if (newNumberOf(a.page) case final page?) a.page == page ? a : a.copyWith(page: page),
+    ];
+
+/// Retângulo de [width] pontos de largura centrado em [center], com a
+/// proporção [aspect] (altura / largura) — usado para imagens e assinaturas.
+ARect stampRect(APoint center, double width, double aspect) {
+  final h = width * aspect;
+  return ARect(center.x - width / 2, center.y + h / 2, center.x + width / 2, center.y - h / 2);
 }
 
 double _distanceToSegment(APoint p, APoint a, APoint b) {

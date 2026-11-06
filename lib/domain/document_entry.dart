@@ -42,6 +42,7 @@ class DocumentEntry {
 
   DocumentEntry copyWith({
     String? name,
+    String? path,
     DateTime? lastOpenedAt,
     int? pageCount,
     int? lastPage,
@@ -53,7 +54,7 @@ class DocumentEntry {
     return DocumentEntry(
       id: id,
       name: name ?? this.name,
-      path: path,
+      path: path ?? this.path,
       addedAt: addedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
       pageCount: pageCount ?? this.pageCount,

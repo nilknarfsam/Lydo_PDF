@@ -40,6 +40,8 @@ dependencies:
   material_ui: ^1.10.0
   path_provider: ^2.1.6
   wakelock_plus: ^1.8.2
+  pdfium_dart: ^0.4.1
+  ffi: ^2.2.0
 
 dev_dependencies:
   flutter_test:
