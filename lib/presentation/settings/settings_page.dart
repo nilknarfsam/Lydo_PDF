@@ -159,7 +159,7 @@ class SettingsPage extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 24),
-            Center(child: Text('Lydo 0.2', style: Theme.of(context).textTheme.bodySmall)),
+            Center(child: Text('Lydo 0.3', style: Theme.of(context).textTheme.bodySmall)),
           ],
         ),
       ),

@@ -93,5 +93,6 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 - ✅ Fase 1: biblioteca, leitor (retomar posição, busca, miniaturas), ajustes.
 - ✅ Fase 2: Anotar (realçar no texto, caneta, texto, nota, borracha, desfazer).
-- ⏭️ Fase 3: Editar (imagem, assinar, organizar páginas) e exportar PDF com anotações.
+- ✅ Fase 3: Editar (imagem, assinar, organizar páginas) e exportar PDF com anotações.
+- Documentação completa em `docs/` (manter atualizada a cada fase).
 - Depois: juntar/dividir, OCR, resumo com IA, abrir PDF por "Abrir com" de outros apps.

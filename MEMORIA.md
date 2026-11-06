@@ -109,4 +109,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-06 | Nome Lydo; fase 1 com o visual das referências; repositório no GitHub | `1a9b4cc` |
 | 2026-11-06 | Fase 2: modo Anotar; CLAUDE.md com orquestração | `68403d6` |
 | 2026-11-06 | CLAUDE.md focado em economia de tokens; criada esta MEMORIA.md | `cb5cd86` |
-| 2026-11-06 | Fase 3: Editar (assinatura, imagem, páginas, exportar). Haiku escreveu telas, Sonnet revisou (1 crítico + 5 importantes corrigidos) | (este commit) |
+| 2026-11-06 | Fase 3: Editar (assinatura, imagem, páginas, exportar). Haiku escreveu telas, Sonnet revisou (1 crítico + 5 importantes corrigidos) | `5cd4604` |
+| 2026-11-06 | Documentação completa em `docs/`, README novo, versão 0.3.0 | (este commit) |
