@@ -2,7 +2,7 @@ enum AppThemeMode { system, light, dark }
 
 enum UiScale { small, normal, large }
 
-enum ScrollMode { continuous, horizontal }
+enum ScrollMode { continuous, horizontal, paged }
 
 extension AppThemeModeLabel on AppThemeMode {
   String get label => switch (this) {
@@ -30,6 +30,7 @@ extension ScrollModeLabel on ScrollMode {
   String get label => switch (this) {
         ScrollMode.continuous => 'Contínua',
         ScrollMode.horizontal => 'Horizontal',
+        ScrollMode.paged => 'Página por página',
       };
 }
 

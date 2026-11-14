@@ -3,7 +3,7 @@
 > Leia isto **antes** de qualquer tarefa. Atualize as seções "Estado atual", "Próximos passos"
 > e "Histórico" **ao terminar** cada tarefa. Regras de código ficam no `CLAUDE.md`.
 
-_Última atualização: 2026-11-06 — fim da fase 3 (aguardando teste no celular)._
+_Última atualização: 2026-11-13 — modo "Página por página" + tela limpa; plano de polimento (fase 3.5)._
 
 ---
 
@@ -14,10 +14,12 @@ _Última atualização: 2026-11-06 — fim da fase 3 (aguardando teste no celula
 | 1 | Biblioteca, leitor que retoma a posição, busca, miniaturas, ajustes | ✅ pronto e instalado no celular |
 | 2 | Modo Anotar: realçar, caneta, texto, nota, borracha, desfazer | ✅ pronto, aguardando teste no celular |
 | 3 | Modo Editar: assinar, imagem, organizar páginas, exportar PDF anotado | ✅ pronto e instalado, **aguardando teste do Franklin** (exportação nunca rodou num aparelho) |
+| 3.5 | Polimento: página por página ✅, tela limpa ✅, demais itens em "Próximos passos" | 🚧 em andamento |
 | 4+ | Juntar/dividir, OCR, resumo com IA, "Abrir com" de outros apps | 📋 ideias |
 
-- **Testes:** 38 passando (`flutter test`). `flutter analyze` sem avisos.
+- **Testes:** 40 passando (`flutter test`). `flutter analyze` sem avisos.
 - **Último commit:** ver `git log -1`.
+- **Emulador para conferir telas:** AVD `Medium_Phone_API_36.1` (1080×2400, igual ao Moto Edge 20 do Franklin; densidade 400 via `adb shell wm density 400`). PDF de teste em `/sdcard/Download/teste_lydo.pdf`. No Git Bash use `MSYS_NO_PATHCONV=1` com `adb`.
 
 ## 2. Mapa do código (onde está cada coisa)
 
@@ -82,16 +84,25 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 - **Exportar:** gera um PDF novo e salva onde a pessoa escolher (FilePicker.saveFile). Realce vira anotação /Highlight nativa do PDF; caneta/texto/nota/imagens viram UMA imagem transparente por página por cima do conteúdo (texto original continua pesquisável). Uma página por vez, máx. ~4 MP por página.
 - **Imagem/assinatura:** guarda `turns` = giro da página quando foi colocada; o renderizador gira a imagem pela diferença. Assinatura usada é COPIADA para stamps/ (apagar da lista não some dos PDFs).
 - **Organizar páginas:** grava um arquivo NOVO `<id>_<timestamp>.pdf`, renumera anotações, salva a entrada, só então apaga o antigo; o leitor antigo é marcado `markReplaced()` para não sobrescrever a entrada.
+- **Página por página (`ScrollMode.paged`):** pdfrx não tem modo de página única. Layout próprio (`ReaderController.pagedLayout`): páginas lado a lado com vão = maior lado da página, para a vizinha nunca aparecer. No fim do gesto (`onGestureEnd`) encaixa com `calcMatrixForFit` na próxima/anterior (velocidade > 250 px/s OU arrasto > 15% da tela); com zoom > 105% do encaixe, não encaixa. O encaixe é adiado (`Future.delayed(Duration.zero)`) porque o pdfrx chama `onInteractionEnd` ANTES de iniciar a inércia. Nesse modo sempre abre com a página salva inteira (não usa a matriz).
+- **Tela limpa:** tocar na página esconde barras, indicador de página e as barras do Android (`immersiveSticky`); ao sair do leitor volta `edgeToEdge`.
+- **Posição salva:** `DocumentEntry.lastLayout` = nome do `ScrollMode` (lê o antigo `lastLayoutHorizontal`).
 - **Gesto no modo Anotar:** com ferramenta ativa o dedo desenha; tocar de novo na ferramenta solta e a página volta a rolar/dar zoom.
 - **Editar o texto original do PDF** (fonte/tamanho, como na tela de referência) é muito difícil: o plano é "cobrir e escrever por cima".
 - **Fora por enquanto:** avatar "FC" (sem login), ajustes "Salvar rascunhos / Preservar original / Pasta de exportação" (voltam na fase 3).
 - **Dependências:** pdfrx, shared_preferences, file_picker, path_provider, material_ui, wakelock_plus, pdfium_dart e ffi (estes dois já vinham com o pdfrx; usados na exportação). Nova dependência → avisar o Franklin.
 
-## 4. Próximos passos
+## 4. Próximos passos (plano combinado: deixar o app "redondinho" antes da fase 4)
 
-1. Franklin testa fases 2 e 3 no celular (principalmente **Exportar** e **Páginas**).
-2. Pendências pequenas da revisão (fase 3): confirmar antes de sair do Organizar páginas com mudanças; limpar arquivos de `stamps/` que nenhuma anotação usa mais.
-3. Fase 4 (sugestão): abrir PDF por "Abrir com"/compartilhar de outros apps, juntar/dividir PDFs, OCR, resumo com IA.
+**Fase 3.5 — polimento (nesta ordem):**
+1. Franklin testa no celular: Exportar, Páginas e o novo Página por página.
+2. Trocar o modo de leitura direto no leitor (menu ⋮), sem ir em Ajustes.
+3. Girar o celular no modo página por página: reencaixar a página atual.
+4. Pendências da revisão da fase 3: confirmar antes de sair do Organizar páginas com mudanças; limpar `stamps/` sem uso.
+5. Anotar: zoom com dois dedos mesmo com ferramenta ativa; miniaturas acessíveis nos modos Anotar/Editar.
+6. Editar: arrastar imagem/assinatura com o dedo.
+
+**Fase 4 — recursos novos:** "Abrir com"/compartilhar de outros apps → juntar/dividir PDFs → OCR → resumo com IA.
 
 ## 5. Problemas conhecidos / dívidas
 
@@ -110,4 +121,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-06 | Fase 2: modo Anotar; CLAUDE.md com orquestração | `68403d6` |
 | 2026-11-06 | CLAUDE.md focado em economia de tokens; criada esta MEMORIA.md | `cb5cd86` |
 | 2026-11-06 | Fase 3: Editar (assinatura, imagem, páginas, exportar). Haiku escreveu telas, Sonnet revisou (1 crítico + 5 importantes corrigidos) | `5cd4604` |
-| 2026-11-06 | Documentação completa em `docs/`, README novo, versão 0.3.0 | (este commit) |
+| 2026-11-06 | Documentação completa em `docs/`, README novo, versão 0.3.0 | `920e821` |
+| 2026-11-13 | Modo "Página por página" + tela limpa (esconde tudo ao tocar); testado no emulador 1080×2400 | (este commit) |

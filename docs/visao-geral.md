@@ -51,7 +51,8 @@ Não há banco de dados, serviço de nuvem nem dependência de rede.
 
 ### Leitor
 
-- Rolagem **contínua** ou **horizontal** (páginas lado a lado).
+- Rolagem **contínua**, **horizontal** (páginas lado a lado) ou **página por página**.
+- Tela limpa: um toque na página esconde tudo (bom para ler e tirar print).
 - Zoom e rolagem.
 - Retomada exata: página, zoom e posição.
 - Busca no texto, com contagem ("3 de 12") e navegação entre resultados.

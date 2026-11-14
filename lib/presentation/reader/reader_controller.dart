@@ -79,6 +79,15 @@ class ReaderController {
   DocumentEntry get entry => _entry;
   bool get horizontal => settings.scrollMode == ScrollMode.horizontal;
 
+  /// Uma página por vez: deslizar troca de página e ela sempre encaixa inteira na tela.
+  bool get paged => settings.scrollMode == ScrollMode.paged;
+
+  /// Página em que o gesto atual começou (para saber se deslizou para a próxima).
+  int _gestureStartPage = 1;
+
+  /// Centro da área visível (coordenadas do documento) quando o gesto começou.
+  Offset? _gestureStartCenter;
+
   /// Página inicial que o PdfViewer deve abrir.
   int initialPage(int documentPages) =>
       settings.resumeLastPage ? _entry.lastPage.clamp(1, documentPages) : 1;
@@ -91,8 +100,11 @@ class ReaderController {
     pageCount.value = doc.pages.length;
     final matrix = _entry.viewMatrix;
     // A matriz só vale para o mesmo modo de rolagem em que foi salva.
-    final sameLayout = _entry.lastLayoutHorizontal == horizontal;
-    if (settings.resumeLastPage && sameLayout && matrix != null && matrix.length == 16) {
+    final sameLayout = _entry.lastLayout == settings.scrollMode.name;
+    if (paged) {
+      // Página por página: sempre abre com a página salva inteira na tela.
+      await fitPage(initialPage(doc.pages.length), duration: Duration.zero);
+    } else if (settings.resumeLastPage && sameLayout && matrix != null && matrix.length == 16) {
       await viewer.goTo(Matrix4.fromList(matrix), duration: Duration.zero);
     }
     _restored = true;
@@ -108,7 +120,85 @@ class ReaderController {
 
   Future<void> goToPage(int page) {
     final target = page.clamp(1, math.max(1, pageCount.value)).toInt();
+    if (paged) return fitPage(target);
     return viewer.goToPage(pageNumber: target);
+  }
+
+  /// Mostra a página [page] inteira, centralizada.
+  Future<void> fitPage(int page, {Duration duration = const Duration(milliseconds: 220)}) async {
+    if (!viewer.isReady) return;
+    final matrix = viewer.calcMatrixForFit(pageNumber: page);
+    if (matrix == null) return;
+    await viewer.goTo(matrix, duration: duration);
+    currentPage.value = page;
+  }
+
+  // ---------- Página por página ----------
+
+  void onGestureStart() {
+    _gestureStartPage = currentPage.value;
+    _gestureStartCenter = viewer.isReady ? viewer.visibleRect.center : null;
+  }
+
+  /// Fim do gesto no modo página por página: com zoom normal, encaixa na
+  /// página seguinte/anterior (conforme o deslize) ou volta para a mesma.
+  /// Com zoom aumentado, deixa a pessoa andar pela página à vontade.
+  void onGestureEnd(Velocity velocity) {
+    if (!paged || !viewer.isReady) return;
+    final fit = viewer.calcMatrixForFit(pageNumber: _gestureStartPage);
+    if (fit != null && viewer.value.zoom > fit.zoom * 1.05) return;
+    final vx = velocity.pixelsPerSecond.dx;
+    // Quanto a página andou, em fração da largura visível (+ = foi para a direita no documento).
+    final visible = viewer.visibleRect;
+    final start = _gestureStartCenter;
+    final moved = start == null ? 0.0 : (visible.center.dx - start.dx) / visible.width;
+    final int target;
+    if (vx < -_swipeVelocity || moved > _swipeFraction) {
+      target = _gestureStartPage + 1;
+    } else if (vx > _swipeVelocity || moved < -_swipeFraction) {
+      target = _gestureStartPage - 1;
+    } else {
+      target = _pageNearestToCenter() ?? _gestureStartPage;
+    }
+    final page = target.clamp(1, math.max(1, pageCount.value)).toInt();
+    // O pdfrx avisa o fim do gesto ANTES de começar a inércia; encaixar só
+    // depois, senão a inércia atropela a animação e a página fica pela metade.
+    Future<void>.delayed(Duration.zero, () => fitPage(page));
+  }
+
+  static const _swipeVelocity = 250.0;
+  static const _swipeFraction = 0.15;
+
+  int? _pageNearestToCenter() {
+    final center = viewer.visibleRect.center;
+    final rects = viewer.layout.pageLayouts;
+    int? best;
+    var bestDistance = double.infinity;
+    for (var i = 0; i < rects.length; i++) {
+      final d = (rects[i].center - center).distance;
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = i + 1;
+      }
+    }
+    return best;
+  }
+
+  /// Páginas lado a lado com um vão grande entre elas, para que a página
+  /// vizinha nunca apareça na tela quando uma página está inteira à mostra.
+  static PdfPageLayout pagedLayout(List<PdfPage> pages, PdfViewerParams params) {
+    final tallest = pages.fold(0.0, (h, p) => math.max(h, p.height));
+    final widest = pages.fold(0.0, (w, p) => math.max(w, p.width));
+    final gap = math.max(tallest, widest);
+    final height = tallest + params.margin * 2;
+    final rects = <Rect>[];
+    var x = params.margin;
+    for (final page in pages) {
+      final slot = widest + gap;
+      rects.add(Rect.fromLTWH(x + (slot - page.width) / 2, (height - page.height) / 2, page.width, page.height));
+      x += slot;
+    }
+    return PdfPageLayout(pageLayouts: rects, documentSize: Size(x + params.margin, height));
   }
 
   void toggleNightMode() => nightMode.value = !nightMode.value;
@@ -181,7 +271,7 @@ class ReaderController {
       lastPage: currentPage.value,
       pageCount: pageCount.value,
       viewMatrix: viewer.isReady ? viewer.value.storage.toList() : null,
-      lastLayoutHorizontal: horizontal,
+      lastLayout: settings.scrollMode.name,
     );
     await repository.save(_entry);
   }

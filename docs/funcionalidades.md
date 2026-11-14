@@ -27,7 +27,7 @@ Efeitos:
 ### Posição
 
 - `ReaderController` (`lib/presentation/reader/reader_controller.dart`) salva a posição **800 ms depois da última mudança** (`_scheduleSave`), e de forma imediata ao sair (`saveNow`).
-- O que é salvo: página atual, número de páginas, `viewMatrix` (16 valores de `viewer.value.storage`) e `lastLayoutHorizontal` (o modo em que a matriz foi gerada).
+- O que é salvo: página atual, número de páginas, `viewMatrix` (16 valores de `viewer.value.storage`) e `lastLayout` (nome do `ScrollMode` em que a matriz foi gerada; entradas antigas com `lastLayoutHorizontal` são convertidas na leitura).
 - Na abertura, `onViewerReady` restaura a matriz **só se** o modo de rolagem for o mesmo em que ela foi salva, a matriz tiver 16 valores e a opção "Retomar última página" estiver ligada. Ou seja, a matriz de um modo não vale no outro.
 - Se a restauração não for possível, o leitor abre na página salva (`initialPage`, limitada ao número de páginas).
 - Salvamento só começa **depois** da restauração, para não gravar uma posição zerada por cima da boa.
@@ -56,6 +56,18 @@ Efeitos:
 - Ajuste **Modo de rolagem** (Ajustes) ou `ScrollMode.horizontal`.
 - `ReaderController.horizontalLayout` monta um `PdfPageLayout` com as páginas lado a lado, separadas pela margem e centralizadas na vertical.
 - Ao trocar de modo, a matriz salva deixa de valer (ver "Posição").
+
+## Página por página
+
+- Ajuste **Modo de rolagem → Página por página** (`ScrollMode.paged`). Mostra uma página inteira por vez; deslizar para o lado troca de página.
+- O pdfrx não tem esse modo pronto. `ReaderController.pagedLayout` põe as páginas lado a lado com um vão do tamanho do maior lado da página, para a vizinha nunca aparecer.
+- `onGestureStart`/`onGestureEnd` (ligados a `onInteractionStart`/`onInteractionEnd`): no fim do gesto, encaixa na próxima/anterior se a velocidade passar de 250 px/s ou o arrasto passar de 15% da largura visível; senão volta para a página mais próxima do centro. Com zoom acima de 105% do encaixe, não encaixa (dá para andar pela página ampliada).
+- O encaixe (`fitPage`, via `calcMatrixForFit`) é adiado um ciclo porque o pdfrx chama `onInteractionEnd` antes de começar a inércia.
+- Nesse modo o leitor sempre abre com a página salva inteira (a matriz não é usada). Miniaturas e "ir para página" também usam `fitPage`.
+
+## Tela limpa
+
+- Tocar na página (modo Ler) esconde as barras do leitor, o indicador de página e as barras do Android (`SystemUiMode.immersiveSticky`). Outro toque traz tudo de volta. Ao sair do leitor volta `edgeToEdge`.
 
 ## Realce que gruda no texto
 

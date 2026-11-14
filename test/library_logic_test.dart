@@ -80,4 +80,25 @@ void main() {
     expect(back.gridView, isTrue);
     expect(AppSettings.fromJson({'themeMode': 'roxo'}).themeMode, AppThemeMode.system);
   });
+
+  test('modo página por página é salvo e lido nos ajustes', () {
+    final s = const AppSettings().copyWith(scrollMode: ScrollMode.paged);
+    expect(AppSettings.fromJson(s.toJson()).scrollMode, ScrollMode.paged);
+    expect(ScrollMode.paged.label, 'Página por página');
+  });
+
+  test('DocumentEntry lê o modo de rolagem salvo por versões antigas', () {
+    final base = DocumentEntry(
+      id: 'x',
+      name: 'a',
+      path: '/a.pdf',
+      addedAt: DateTime(2026),
+      lastOpenedAt: DateTime(2026),
+    ).toJson()
+      ..remove('lastLayout');
+    expect(DocumentEntry.fromJson({...base, 'lastLayoutHorizontal': true}).lastLayout, 'horizontal');
+    expect(DocumentEntry.fromJson(base).lastLayout, 'continuous');
+    final paged = DocumentEntry.fromJson({...base, 'lastLayout': 'paged'});
+    expect(DocumentEntry.fromJson(paged.toJson()).lastLayout, 'paged');
+  });
 }

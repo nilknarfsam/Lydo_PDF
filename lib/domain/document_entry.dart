@@ -11,7 +11,7 @@ class DocumentEntry {
     this.viewMatrix,
     this.sizeBytes = 0,
     this.favorite = false,
-    this.lastLayoutHorizontal = false,
+    this.lastLayout = 'continuous',
   });
 
   /// Impressão digital do conteúdo (não do caminho): o mesmo PDF
@@ -32,8 +32,9 @@ class DocumentEntry {
   final int sizeBytes;
   final bool favorite;
 
-  /// Modo de rolagem em que [viewMatrix] foi salva (a matriz só serve nele).
-  final bool lastLayoutHorizontal;
+  /// Modo de rolagem (nome do ScrollMode) em que [viewMatrix] foi salva:
+  /// a matriz só serve nele.
+  final String lastLayout;
 
   /// Progresso de 0 a 1 (página atual / total).
   double get progress => pageCount <= 0 ? 0 : (lastPage / pageCount).clamp(0, 1);
@@ -49,7 +50,7 @@ class DocumentEntry {
     List<double>? viewMatrix,
     int? sizeBytes,
     bool? favorite,
-    bool? lastLayoutHorizontal,
+    String? lastLayout,
   }) {
     return DocumentEntry(
       id: id,
@@ -62,7 +63,7 @@ class DocumentEntry {
       viewMatrix: viewMatrix ?? this.viewMatrix,
       sizeBytes: sizeBytes ?? this.sizeBytes,
       favorite: favorite ?? this.favorite,
-      lastLayoutHorizontal: lastLayoutHorizontal ?? this.lastLayoutHorizontal,
+      lastLayout: lastLayout ?? this.lastLayout,
     );
   }
 
@@ -77,7 +78,7 @@ class DocumentEntry {
         if (viewMatrix != null) 'viewMatrix': viewMatrix,
         'sizeBytes': sizeBytes,
         'favorite': favorite,
-        'lastLayoutHorizontal': lastLayoutHorizontal,
+        'lastLayout': lastLayout,
       };
 
   factory DocumentEntry.fromJson(Map<String, dynamic> json) {
@@ -93,7 +94,9 @@ class DocumentEntry {
       viewMatrix: matrix?.map((e) => (e as num).toDouble()).toList(),
       sizeBytes: json['sizeBytes'] as int? ?? 0,
       favorite: json['favorite'] as bool? ?? false,
-      lastLayoutHorizontal: json['lastLayoutHorizontal'] as bool? ?? false,
+      // Versões antigas guardavam só "horizontal ou não".
+      lastLayout: json['lastLayout'] as String? ??
+          (json['lastLayoutHorizontal'] == true ? 'horizontal' : 'continuous'),
     );
   }
 }

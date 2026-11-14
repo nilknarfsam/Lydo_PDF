@@ -85,6 +85,15 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       if (error != null && mounted) _snack(error);
     });
     WidgetsBinding.instance.addObserver(this);
+    _c.chromeVisible.addListener(_applySystemBars);
+  }
+
+  /// Tela limpa: com as barras do leitor escondidas, some também a barra de
+  /// status e a de navegação do Android (bom para ler e tirar print).
+  void _applySystemBars() {
+    SystemChrome.setEnabledSystemUIMode(
+      _c.chromeVisible.value ? SystemUiMode.edgeToEdge : SystemUiMode.immersiveSticky,
+    );
   }
 
   void _repaintPages() {
@@ -231,6 +240,8 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _c.chromeVisible.removeListener(_applySystemBars);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _c.dispose();
     _a.dispose();
     _images.dispose();
@@ -469,7 +480,13 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       backgroundColor: LydoColors.readerBg,
       pageImageColorFilter: night ? _nightFilter : null,
       margin: 12,
-      layoutPages: _c.horizontal ? ReaderController.horizontalLayout : null,
+      layoutPages: _c.paged
+          ? ReaderController.pagedLayout
+          : _c.horizontal
+              ? ReaderController.horizontalLayout
+              : null,
+      onInteractionStart: (_) => _c.onGestureStart(),
+      onInteractionEnd: (details) => _c.onGestureEnd(details.velocity),
       calculateInitialPageNumber: (document, _) => _c.initialPage(document.pages.length),
       onViewerReady: (document, _) => _c.onViewerReady(document),
       onPageChanged: _c.onPageChanged,
@@ -594,11 +611,12 @@ class _Chrome extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            right: 16,
-            bottom: !visible ? 24 : (annotating ? 172 : 140),
-            child: SafeArea(child: _PagePill(controller: controller, onTap: onAskPage)),
-          ),
+          if (visible)
+            Positioned(
+              right: 16,
+              bottom: annotating ? 172 : 140,
+              child: SafeArea(child: _PagePill(controller: controller, onTap: onAskPage)),
+            ),
           AnimatedPositioned(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
