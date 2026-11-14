@@ -13,6 +13,7 @@ import '../../data/pdf_edit_service.dart';
 import '../../data/stamp_import_service.dart';
 import '../../domain/annotation.dart';
 import '../../domain/annotation_repository.dart';
+import '../../domain/app_settings.dart';
 import '../../domain/document_entry.dart';
 import '../../domain/library_repository.dart';
 import '../../domain/page_plan.dart';
@@ -227,6 +228,38 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       ),
     );
     if (ok == true) _a.clearPage(page);
+  }
+
+  /// Escolher Contínua / Horizontal / Página por página sem sair do PDF.
+  /// A escolha também vira o padrão nos Ajustes.
+  Future<void> _askScrollMode() async {
+    final current = _c.scrollMode.value;
+    final picked = await showModalBottomSheet<ScrollMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text('Modo de leitura', style: Theme.of(sheet).textTheme.titleLarge),
+            ),
+            for (final m in ScrollMode.values)
+              ListTile(
+                title: Text(m.label),
+                trailing: m == current ? const Icon(Icons.check, color: LydoColors.primary) : null,
+                onTap: () => Navigator.pop(sheet, m),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || picked == current) return;
+    _c.changeScrollMode(picked);
+    widget.settings.update((s) => s.copyWith(scrollMode: picked));
   }
 
   @override
@@ -487,6 +520,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
               : null,
       onInteractionStart: (_) => _c.onGestureStart(),
       onInteractionEnd: (details) => _c.onGestureEnd(details.velocity),
+      onViewSizeChanged: (size, oldSize, _) => _c.onViewSizeChanged(size, oldSize),
       calculateInitialPageNumber: (document, _) => _c.initialPage(document.pages.length),
       onViewerReady: (document, _) => _c.onViewerReady(document),
       onPageChanged: _c.onPageChanged,
@@ -520,12 +554,13 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
           body: Stack(
             children: [
               Positioned.fill(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _c.nightMode,
-                  builder: (_, night, _) => PdfViewer.file(
+                // O modo de rolagem entra aqui para o pdfrx refazer o layout ao trocar.
+                child: ListenableBuilder(
+                  listenable: Listenable.merge([_c.nightMode, _c.scrollMode]),
+                  builder: (_, _) => PdfViewer.file(
                     widget.entry.path,
                     controller: _c.viewer,
-                    params: params(night: night),
+                    params: params(night: _c.nightMode.value),
                   ),
                 ),
               ),
@@ -546,6 +581,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
                 controller: _c,
                 annotations: _a,
                 onAskPage: _askPage,
+                onAskScrollMode: _askScrollMode,
                 onModeSelected: _onModeSelected,
                 onMore: _showMore,
                 onEditAction: _onEditAction,
@@ -564,6 +600,7 @@ class _Chrome extends StatelessWidget {
     required this.controller,
     required this.annotations,
     required this.onAskPage,
+    required this.onAskScrollMode,
     required this.onModeSelected,
     required this.onMore,
     required this.onEditAction,
@@ -571,6 +608,7 @@ class _Chrome extends StatelessWidget {
   final ReaderController controller;
   final AnnotationController annotations;
   final VoidCallback onAskPage;
+  final VoidCallback onAskScrollMode;
   final ValueChanged<ReaderMode> onModeSelected;
   final VoidCallback onMore;
   final ValueChanged<EditAction> onEditAction;
@@ -597,7 +635,7 @@ class _Chrome extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
                   child: Column(
                     children: [
-                      _TopBar(controller: controller, onAskPage: onAskPage),
+                      _TopBar(controller: controller, onAskPage: onAskPage, onAskScrollMode: onAskScrollMode),
                       const SizedBox(height: 10),
                       ValueListenableBuilder(
                         valueListenable: controller.searchOpen,
@@ -704,9 +742,10 @@ class _TextDialogState extends State<_TextDialog> {
 }
 
 class _TopBar extends StatefulWidget {
-  const _TopBar({required this.controller, required this.onAskPage});
+  const _TopBar({required this.controller, required this.onAskPage, required this.onAskScrollMode});
   final ReaderController controller;
   final VoidCallback onAskPage;
+  final VoidCallback onAskScrollMode;
 
   @override
   State<_TopBar> createState() => _TopBarState();
@@ -766,6 +805,7 @@ class _TopBarState extends State<_TopBar> {
             onSelected: (v) => switch (v) {
               'night' => c.toggleNightMode(),
               'page' => widget.onAskPage(),
+              'layout' => widget.onAskScrollMode(),
               _ => null,
             },
             itemBuilder: (_) => [
@@ -783,6 +823,15 @@ class _TopBarState extends State<_TopBar> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.numbers),
                   title: Text('Ir para a página'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'layout',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.auto_stories_outlined),
+                  title: const Text('Modo de leitura'),
+                  subtitle: Text(c.scrollMode.value.label),
                 ),
               ),
             ],

@@ -64,6 +64,8 @@ Efeitos:
 - `onGestureStart`/`onGestureEnd` (ligados a `onInteractionStart`/`onInteractionEnd`): no fim do gesto, encaixa na próxima/anterior se a velocidade passar de 250 px/s ou o arrasto passar de 15% da largura visível; senão volta para a página mais próxima do centro. Com zoom acima de 105% do encaixe, não encaixa (dá para andar pela página ampliada).
 - O encaixe (`fitPage`, via `calcMatrixForFit`) é adiado um ciclo porque o pdfrx chama `onInteractionEnd` antes de começar a inércia.
 - Nesse modo o leitor sempre abre com a página salva inteira (a matriz não é usada). Miniaturas e "ir para página" também usam `fitPage`.
+- Girar o celular: `onViewSizeChanged` reencaixa a página atual.
+- Trocar o modo sem sair do PDF: menu ⋮ → **Modo de leitura**. `ReaderController.changeScrollMode` muda o `scrollMode` (o `PdfViewer` refaz o layout sem recarregar) e volta para a página atual; a escolha também é salva nos Ajustes.
 
 ## Tela limpa
 

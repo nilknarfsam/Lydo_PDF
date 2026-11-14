@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/result.dart';
+import 'dart:io';
+
+import '../../data/cover_cache_service.dart';
 import '../../data/pdf_import_service.dart';
 import '../../domain/annotation_repository.dart';
 import '../../domain/document_entry.dart';
@@ -86,12 +89,18 @@ class HomeController {
     required this.annotationRepository,
     required this.signatureRepository,
     required PdfImportService importService,
-  }) : _import = importService;
+    CoverCacheService? covers,
+  })  : _import = importService,
+        _covers = covers ?? CoverCacheService();
 
   final LibraryRepository repository;
   final AnnotationRepository annotationRepository;
   final SignatureRepository signatureRepository;
   final PdfImportService _import;
+  final CoverCacheService _covers;
+
+  /// Capa do PDF já pronta em PNG (gerada só na primeira vez).
+  Future<Result<File>> coverFor(DocumentEntry entry) => _covers.coverFor(entry.path);
   final state = ValueNotifier(const HomeState());
 
   Future<void> load() async {
@@ -150,6 +159,7 @@ class HomeController {
   Future<void> remove(DocumentEntry entry) async {
     await repository.remove(entry.id);
     await annotationRepository.delete(entry.id);
+    await _covers.remove(entry.path);
     await load();
   }
 

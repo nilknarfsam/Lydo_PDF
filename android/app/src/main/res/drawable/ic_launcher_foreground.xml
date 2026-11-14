@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícone do Lydo: página com marcador de fita ("lembra onde você parou"). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Reduzido para caber na área segura do ícone adaptável (círculo de 66dp). -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36,20 H72 A8,8 0 0 1 80,28 V80 A8,8 0 0 1 72,88 H36 A8,8 0 0 1 28,80 V28 A8,8 0 0 1 36,20 Z" />
+        <path
+            android:fillColor="#EF9F27"
+            android:pathData="M62,20 H74 V44 L68,39 L62,44 Z" />
+        <path
+            android:strokeColor="#B5D4F4"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:pathData="M38,54 H70 M38,64 H70 M38,74 H56" />
+        <path
+            android:fillColor="#2F6BF6"
+            android:pathData="M64,74 m-4,0 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0" />
+    </group>
+</vector>

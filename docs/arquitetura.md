@@ -68,6 +68,7 @@ Baseado na seção 2 da [MEMORIA](../MEMORIA.md).
 | `prefs_settings_repository.dart` | Ajustes em SharedPreferences (chave `settings.v1`). |
 | `json_annotation_repository.dart` | Anotações em `<docs>/annotations/<id>.json`, uma por documento. |
 | `pdf_import_service.dart` | Seletor de arquivo, cópia para `<docs>/pdfs/<id>.pdf` e impressão digital. |
+| `cover_cache_service.dart` | Capa (página 1) de cada PDF guardada como PNG; gerada uma vez, depois só lida do disco. |
 | `pdf_edit_service.dart` | **Delicado (FFI PDFium):** `applyPagePlan` e `exportWithAnnotations`. |
 | `stamp_import_service.dart` | Fotos e assinaturas copiadas para `<docs>/stamps/`, com a proporção. |
 | `file_signature_repository.dart` | Assinaturas em PNG, em `<docs>/signatures/`. |
@@ -135,6 +136,7 @@ O `id` de cada PDF é uma impressão digital do conteúdo (FNV-1a dos primeiros 
 | Anotações de cada documento | `<docs>/annotations/<id>.json` | Lista JSON de `Annotation` | `JsonAnnotationRepository` |
 | Assinaturas salvas | `<docs>/signatures/<microssegundos>.png` | PNG com fundo transparente | `FileSignatureRepository` |
 | Cópias de imagens e assinaturas usadas | `<docs>/stamps/<microssegundos>.<ext>` | PNG ou JPG | `StampImportService` |
+| Capas da biblioteca (cache) | `<docs>/covers/<nome-do-pdf>.png` | PNG 320 px de largura | `CoverCacheService` |
 
 `<docs>` é a pasta de documentos do app, obtida pelo `path_provider`.
 

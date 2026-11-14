@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
-import 'package:pdfrx/pdfrx.dart';
 
 import '../../core/formatters.dart';
 import '../../core/result.dart';
@@ -206,7 +205,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 24),
                       Text('Continuar lendo', style: Theme.of(context).textTheme.titleLarge),
                       const SizedBox(height: 12),
-                      _ContinueCard(entry: cont, onTap: () => _open(cont)),
+                      _ContinueCard(entry: cont, cover: _c.coverFor(cont), onTap: () => _open(cont)),
                     ],
                     const SizedBox(height: 24),
                     _SectionHeader(state: state, settings: widget.settings),
@@ -250,6 +249,7 @@ class _HomePageState extends State<HomePage> {
                   itemCount: docs.length,
                   itemBuilder: (_, i) => _GridItem(
                     entry: docs[i],
+                    cover: _c.coverFor(docs[i]),
                     onTap: () => _open(docs[i]),
                     onMenu: () => _showMenu(docs[i]),
                   ),
@@ -408,8 +408,10 @@ class _EmptyState extends StatelessWidget {
 
 /// Capa (primeira página) renderizada em miniatura.
 class DocumentCover extends StatelessWidget {
-  const DocumentCover({super.key, required this.path, required this.width});
-  final String path;
+  const DocumentCover({super.key, required this.cover, required this.width});
+
+  /// PNG da capa (ver `HomeController.coverFor`).
+  final Future<Result<File>> cover;
   final double width;
 
   @override
@@ -425,11 +427,12 @@ class DocumentCover extends StatelessWidget {
           boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2))],
         ),
         clipBehavior: Clip.antiAlias,
-        child: PdfDocumentViewBuilder.file(
-          path,
-          builder: (context, document) => document == null
-              ? const SizedBox.shrink()
-              : PdfPageView(document: document, pageNumber: 1, maximumDpi: 72),
+        child: FutureBuilder<Result<File>>(
+          future: cover,
+          builder: (context, snap) => switch (snap.data) {
+            Ok(:final value) => Image.file(value, fit: BoxFit.cover, alignment: Alignment.topCenter, gaplessPlayback: true),
+            _ => const SizedBox.shrink(),
+          },
         ),
       ),
     );
@@ -437,8 +440,9 @@ class DocumentCover extends StatelessWidget {
 }
 
 class _ContinueCard extends StatelessWidget {
-  const _ContinueCard({required this.entry, required this.onTap});
+  const _ContinueCard({required this.entry, required this.cover, required this.onTap});
   final DocumentEntry entry;
+  final Future<Result<File>> cover;
   final VoidCallback onTap;
 
   @override
@@ -451,7 +455,7 @@ class _ContinueCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              DocumentCover(path: entry.path, width: 76),
+              DocumentCover(cover: cover, width: 76),
               const SizedBox(width: 18),
               Expanded(
                 child: Column(
@@ -563,8 +567,9 @@ class _ListCard extends StatelessWidget {
 }
 
 class _GridItem extends StatelessWidget {
-  const _GridItem({required this.entry, required this.onTap, required this.onMenu});
+  const _GridItem({required this.entry, required this.cover, required this.onTap, required this.onMenu});
   final DocumentEntry entry;
+  final Future<Result<File>> cover;
   final VoidCallback onTap;
   final VoidCallback onMenu;
 
@@ -580,7 +585,7 @@ class _GridItem extends StatelessWidget {
           children: [
             Stack(
               children: [
-                DocumentCover(path: entry.path, width: box.maxWidth),
+                DocumentCover(cover: cover, width: box.maxWidth),
                 if (entry.hasStarted)
                   Positioned(
                     left: 0,

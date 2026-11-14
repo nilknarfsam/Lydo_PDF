@@ -22,7 +22,8 @@ class ReaderController {
     required this.settings,
   })  : _entry = entry,
         currentPage = ValueNotifier(entry.lastPage),
-        pageCount = ValueNotifier(entry.pageCount) {
+        pageCount = ValueNotifier(entry.pageCount),
+        scrollMode = ValueNotifier(settings.scrollMode) {
     searcher = PdfTextSearcher(viewer)..addListener(_onSearchChanged);
     if (settings.keepScreenOn) WakelockPlus.enable();
   }
@@ -42,6 +43,9 @@ class ReaderController {
   final nightMode = ValueNotifier(false);
   final chromeVisible = ValueNotifier(true);
   final mode = ValueNotifier(ReaderMode.read);
+
+  /// Modo de rolagem em uso (começa no dos Ajustes; dá para trocar no leitor).
+  final ValueNotifier<ScrollMode> scrollMode;
 
   // ---------- Modo Editar ----------
   /// Imagem/assinatura escolhida, esperando o toque na página.
@@ -77,10 +81,10 @@ class ReaderController {
   }
 
   DocumentEntry get entry => _entry;
-  bool get horizontal => settings.scrollMode == ScrollMode.horizontal;
+  bool get horizontal => scrollMode.value == ScrollMode.horizontal;
 
   /// Uma página por vez: deslizar troca de página e ela sempre encaixa inteira na tela.
-  bool get paged => settings.scrollMode == ScrollMode.paged;
+  bool get paged => scrollMode.value == ScrollMode.paged;
 
   /// Página em que o gesto atual começou (para saber se deslizou para a próxima).
   int _gestureStartPage = 1;
@@ -100,7 +104,7 @@ class ReaderController {
     pageCount.value = doc.pages.length;
     final matrix = _entry.viewMatrix;
     // A matriz só vale para o mesmo modo de rolagem em que foi salva.
-    final sameLayout = _entry.lastLayout == settings.scrollMode.name;
+    final sameLayout = _entry.lastLayout == scrollMode.value.name;
     if (paged) {
       // Página por página: sempre abre com a página salva inteira na tela.
       await fitPage(initialPage(doc.pages.length), duration: Duration.zero);
@@ -131,6 +135,30 @@ class ReaderController {
     if (matrix == null) return;
     await viewer.goTo(matrix, duration: duration);
     currentPage.value = page;
+  }
+
+  /// Troca o modo de rolagem sem fechar o PDF: o leitor refaz o layout e
+  /// depois volta para a página em que a pessoa estava.
+  void changeScrollMode(ScrollMode m) {
+    if (m == scrollMode.value) return;
+    final page = currentPage.value;
+    scrollMode.value = m;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!viewer.isReady) return;
+      if (paged) {
+        fitPage(page, duration: Duration.zero);
+      } else {
+        viewer.goToPage(pageNumber: page, duration: Duration.zero);
+      }
+    });
+  }
+
+  /// A tela mudou de tamanho (ex.: celular girado): no modo página por
+  /// página, reencaixa a página atual inteira.
+  void onViewSizeChanged(Size size, Size? oldSize) {
+    if (!paged || oldSize == null || size == oldSize) return;
+    final page = currentPage.value;
+    WidgetsBinding.instance.addPostFrameCallback((_) => fitPage(page, duration: Duration.zero));
   }
 
   // ---------- Página por página ----------
@@ -271,7 +299,7 @@ class ReaderController {
       lastPage: currentPage.value,
       pageCount: pageCount.value,
       viewMatrix: viewer.isReady ? viewer.value.storage.toList() : null,
-      lastLayout: settings.scrollMode.name,
+      lastLayout: scrollMode.value.name,
     );
     await repository.save(_entry);
   }
@@ -289,6 +317,7 @@ class ReaderController {
       nightMode,
       chromeVisible,
       mode,
+      scrollMode,
       searchOpen,
       searchStatus,
       pendingStamp,

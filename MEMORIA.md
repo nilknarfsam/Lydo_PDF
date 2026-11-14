@@ -44,6 +44,7 @@ lib/
     prefs_settings_repository.dart  ajustes em SharedPreferences (chave settings.v1)
     json_annotation_repository.dart anotações em <docs>/annotations/<id>.json
     pdf_import_service.dart         seletor de arquivo + cópia para <docs>/pdfs/<id>.pdf + impressão digital
+    cover_cache_service.dart        capa (pág. 1) em PNG em <docs>/covers/<nome-do-pdf>.png, gerada uma vez
     pdf_edit_service.dart           DELICADO (FFI PDFium): applyPagePlan + exportWithAnnotations
     stamp_import_service.dart       fotos/assinaturas copiadas para <docs>/stamps/ + proporção
     file_signature_repository.dart  assinaturas PNG em <docs>/signatures/
@@ -85,6 +86,9 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 - **Imagem/assinatura:** guarda `turns` = giro da página quando foi colocada; o renderizador gira a imagem pela diferença. Assinatura usada é COPIADA para stamps/ (apagar da lista não some dos PDFs).
 - **Organizar páginas:** grava um arquivo NOVO `<id>_<timestamp>.pdf`, renumera anotações, salva a entrada, só então apaga o antigo; o leitor antigo é marcado `markReplaced()` para não sobrescrever a entrada.
 - **Página por página (`ScrollMode.paged`):** pdfrx não tem modo de página única. Layout próprio (`ReaderController.pagedLayout`): páginas lado a lado com vão = maior lado da página, para a vizinha nunca aparecer. No fim do gesto (`onGestureEnd`) encaixa com `calcMatrixForFit` na próxima/anterior (velocidade > 250 px/s OU arrasto > 15% da tela); com zoom > 105% do encaixe, não encaixa. O encaixe é adiado (`Future.delayed(Duration.zero)`) porque o pdfrx chama `onInteractionEnd` ANTES de iniciar a inércia. Nesse modo sempre abre com a página salva inteira (não usa a matriz).
+- **Modo no leitor:** `ReaderController.scrollMode` (ValueNotifier, começa no dos Ajustes). O `PdfViewer` escuta `scrollMode`; o pdfrx refaz o layout a cada atualização do widget (`_layoutDirty`), então trocar não recarrega o PDF. Depois do frame, volta à página atual.
+- **Ícone:** escolhido pelo Franklin (conceito "B · Marcador"). Adaptável: `res/drawable/ic_launcher_foreground.xml` (vetor, reduzido a 72% para a área segura) + fundo `@color/ic_launcher_background` (#2F6BF6) em `mipmap-anydpi-v26`; PNGs antigos em `mipmap-*` para Android < 8.
+- **Capas:** `HomeController.coverFor` → `CoverCacheService` (PNG 320 px). O nome segue o arquivo do PDF, então PDF reorganizado ganha capa nova; remover da biblioteca apaga a capa.
 - **Tela limpa:** tocar na página esconde barras, indicador de página e as barras do Android (`immersiveSticky`); ao sair do leitor volta `edgeToEdge`.
 - **Posição salva:** `DocumentEntry.lastLayout` = nome do `ScrollMode` (lê o antigo `lastLayoutHorizontal`).
 - **Gesto no modo Anotar:** com ferramenta ativa o dedo desenha; tocar de novo na ferramenta solta e a página volta a rolar/dar zoom.
@@ -96,8 +100,11 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 
 **Fase 3.5 — polimento (nesta ordem):**
 1. Franklin testa no celular: Exportar, Páginas e o novo Página por página.
-2. Trocar o modo de leitura direto no leitor (menu ⋮), sem ir em Ajustes.
-3. Girar o celular no modo página por página: reencaixar a página atual.
+2. ✅ Trocar o modo de leitura direto no leitor (menu ⋮ → Modo de leitura; também vira o padrão nos Ajustes).
+3. ✅ Girar o celular no modo página por página: reencaixa a página atual (`onViewSizeChanged`).
+3a. ✅ Carregamento: capas em PNG (`CoverCacheService`). Medido no emulador: abrir o app em debug 3,4–5,6 s × release 0,7–1,3 s → a lentidão sentida é principalmente da versão debug.
+3b. ✅ Ícone original: "B · Marcador" (página branca + fita laranja + ponto azul).
+3c. Instalar uma versão **release** no celular do Franklin (bem mais rápida que a debug).
 4. Pendências da revisão da fase 3: confirmar antes de sair do Organizar páginas com mudanças; limpar `stamps/` sem uso.
 5. Anotar: zoom com dois dedos mesmo com ferramenta ativa; miniaturas acessíveis nos modos Anotar/Editar.
 6. Editar: arrastar imagem/assinatura com o dedo.
@@ -122,4 +129,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-06 | CLAUDE.md focado em economia de tokens; criada esta MEMORIA.md | `cb5cd86` |
 | 2026-11-06 | Fase 3: Editar (assinatura, imagem, páginas, exportar). Haiku escreveu telas, Sonnet revisou (1 crítico + 5 importantes corrigidos) | `5cd4604` |
 | 2026-11-06 | Documentação completa em `docs/`, README novo, versão 0.3.0 | `920e821` |
-| 2026-11-13 | Modo "Página por página" + tela limpa (esconde tudo ao tocar); testado no emulador 1080×2400 | (este commit) |
+| 2026-11-13 | Modo "Página por página" + tela limpa (esconde tudo ao tocar); testado no emulador 1080×2400 | `ac01d20` |
+| 2026-11-13 | Trocar modo de leitura no menu ⋮ do leitor; reencaixar ao girar; capas em cache (PNG); ícone novo "Marcador"; testado com livro de 411 págs/131 MB | (este commit) |
