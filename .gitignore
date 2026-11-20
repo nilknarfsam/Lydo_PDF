@@ -49,3 +49,5 @@ app.*.map.json
 
 # PDFs de teste deixados na raiz (não versionar)
 /*.pdf
+
+/android/build/

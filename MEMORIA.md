@@ -17,7 +17,8 @@ _Última atualização: 2026-11-13 — modo "Página por página" + tela limpa; 
 | 3.5 | Polimento: página por página ✅, tela limpa ✅, demais itens em "Próximos passos" | 🚧 em andamento |
 | 4+ | Juntar/dividir, OCR, resumo com IA, "Abrir com" de outros apps | 📋 ideias |
 
-- **Testes:** 40 passando (`flutter test`). `flutter analyze` sem avisos.
+- **Testes:** 43 passando (`flutter test`). `flutter analyze` sem avisos. Flutter 3.50 → AGP 9.1.1 (`android/settings.gradle.kts`).
+- **adb** não está no PATH: `$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe`.
 - **Último commit:** ver `git log -1`.
 - **Emulador para conferir telas:** AVD `Medium_Phone_API_36.1` (1080×2400, igual ao Moto Edge 20 do Franklin; densidade 400 via `adb shell wm density 400`). PDF de teste em `/sdcard/Download/teste_lydo.pdf`. No Git Bash use `MSYS_NO_PATHCONV=1` com `adb`.
 
@@ -47,6 +48,7 @@ lib/
     cover_cache_service.dart        capa (pág. 1) em PNG em <docs>/covers/<nome-do-pdf>.png, gerada uma vez
     pdf_edit_service.dart           DELICADO (FFI PDFium): applyPagePlan + exportWithAnnotations
     stamp_import_service.dart       fotos/assinaturas copiadas para <docs>/stamps/ + proporção
+    stamp_cleanup_service.dart      apaga de stamps/ o que nenhum JSON de anotações cita (por nome do arquivo; JSON ilegível → não apaga nada)
     file_signature_repository.dart  assinaturas PNG em <docs>/signatures/
   presentation/
     theme/lydo_theme.dart           cores LydoColors, tema claro/escuro, LydoLogo, extensão context.*
@@ -69,6 +71,7 @@ test/
   annotation_test.dart              highlightRects, borracha, JSON, remap, stampRect, repositório
   signature_test.dart               repositório de assinaturas + controller do desenho
   page_plan_test.dart               PagePlan + PageOrganizerController
+  stamp_cleanup_test.dart           limpeza de stamps/
 ```
 
 Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma PDF").
@@ -105,7 +108,7 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 3a. ✅ Carregamento: capas em PNG (`CoverCacheService`). Medido no emulador: abrir o app em debug 3,4–5,6 s × release 0,7–1,3 s → a lentidão sentida é principalmente da versão debug.
 3b. ✅ Ícone original: "B · Marcador" (página branca + fita laranja + ponto azul).
 3c. ✅ Versão **release** instalada no celular do Franklin.
-4. Pendências da revisão da fase 3: confirmar antes de sair do Organizar páginas com mudanças; limpar `stamps/` sem uso.
+4. ✅ Organizar páginas pergunta "Descartar mudanças?" ao voltar com mudanças (`PopScope`); `StampCleanupService` limpa `stamps/` sem uso ao abrir o app e ao remover um PDF.
 5. Anotar: zoom com dois dedos mesmo com ferramenta ativa; miniaturas acessíveis nos modos Anotar/Editar.
 6. Editar: arrastar imagem/assinatura com o dedo.
 
@@ -131,4 +134,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-06 | Documentação completa em `docs/`, README novo, versão 0.3.0 | `920e821` |
 | 2026-11-13 | Modo "Página por página" + tela limpa (esconde tudo ao tocar); testado no emulador 1080×2400 | `ac01d20` |
 | 2026-11-13 | Trocar modo de leitura no menu ⋮ do leitor; reencaixar ao girar; capas em cache (PNG); ícone novo "Marcador"; testado com livro de 411 págs/131 MB | `60fae59` |
-| 2026-11-20 | CLAUDE.md: fluxo com Antigravity (Gemini) e Codex (ChatGPT) além de Haiku/Sonnet; Flutter 3.50 (analyze limpo, 40 testes ok) | (este commit) |
+| 2026-11-20 | CLAUDE.md: fluxo com Antigravity (Gemini) e Codex (ChatGPT) além de Haiku/Sonnet; Flutter 3.50 (analyze limpo, 40 testes ok) | — |
+| 2026-11-20 | Organizar: confirmar ao sair com mudanças; limpeza de stamps/ sem uso; AGP 9.1.1 para o Flutter 3.50; release compilada | (este commit) |

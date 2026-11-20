@@ -5,6 +5,7 @@ import 'dart:io';
 
 import '../../data/cover_cache_service.dart';
 import '../../data/pdf_import_service.dart';
+import '../../data/stamp_cleanup_service.dart';
 import '../../domain/annotation_repository.dart';
 import '../../domain/document_entry.dart';
 import '../../domain/library_repository.dart';
@@ -90,14 +91,21 @@ class HomeController {
     required this.signatureRepository,
     required PdfImportService importService,
     CoverCacheService? covers,
+    StampCleanupService? stampCleanup,
   })  : _import = importService,
-        _covers = covers ?? CoverCacheService();
+        _covers = covers ?? CoverCacheService(),
+        _stampCleanup = stampCleanup ?? StampCleanupService();
 
   final LibraryRepository repository;
   final AnnotationRepository annotationRepository;
   final SignatureRepository signatureRepository;
   final PdfImportService _import;
   final CoverCacheService _covers;
+  final StampCleanupService _stampCleanup;
+
+  /// Apaga imagens/assinaturas que nenhuma anotação usa mais. Falha é silenciosa:
+  /// no pior caso sobra arquivo, nada some.
+  Future<void> cleanUnusedStamps() async => _stampCleanup.sweep();
 
   /// Capa do PDF já pronta em PNG (gerada só na primeira vez).
   Future<Result<File>> coverFor(DocumentEntry entry) => _covers.coverFor(entry.path);
@@ -161,6 +169,7 @@ class HomeController {
     await annotationRepository.delete(entry.id);
     await _covers.remove(entry.path);
     await load();
+    await cleanUnusedStamps();
   }
 
   void dispose() => state.dispose();

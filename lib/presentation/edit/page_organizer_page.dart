@@ -32,6 +32,31 @@ class _PageOrganizerPageState extends State<PageOrganizerPage> {
     super.dispose();
   }
 
+  // Navigator.pop direto não passa pelo PopScope (ele só barra o voltar do sistema/gesto).
+  void _finish() => Navigator.of(context).pop(_controller.plan);
+
+  /// Voltar com mudanças não concluídas pergunta antes de descartar.
+  Future<void> _confirmDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Descartar mudanças?'),
+        content: const Text('As páginas giradas, excluídas ou movidas não serão salvas.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Continuar editando'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Descartar'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) Navigator.of(context).pop();
+  }
+
   void _deleteSelected() {
     final removed = _controller.deleteSelected();
     if (!removed) {
@@ -43,6 +68,21 @@ class _PageOrganizerPageState extends State<PageOrganizerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final c = _controller;
+    return ValueListenableBuilder<List<PageSlot>>(
+      valueListenable: c.slots,
+      builder: (context, _, scaffold) => PopScope<Object?>(
+        canPop: !c.hasChanges,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _confirmDiscard();
+        },
+        child: scaffold!,
+      ),
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final c = _controller;
     return Scaffold(
       appBar: AppBar(
@@ -61,7 +101,7 @@ class _PageOrganizerPageState extends State<PageOrganizerPage> {
             builder: (context, _, _) => Padding(
               padding: const EdgeInsets.only(right: 12),
               child: FilledButton(
-                onPressed: c.hasChanges ? () => Navigator.of(context).pop(c.plan) : null,
+                onPressed: c.hasChanges ? _finish : null,
                 child: const Text('Concluir'),
               ),
             ),

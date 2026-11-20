@@ -28,6 +28,8 @@ Future<void> main() async {
     importService: PdfImportService(),
   );
   runApp(LydoApp(home: home, settings: settings));
+  // Sem await: limpa stamps/ em segundo plano, sem atrasar a abertura.
+  home.cleanUnusedStamps();
 }
 
 class LydoApp extends StatelessWidget {
