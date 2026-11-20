@@ -99,12 +99,12 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 ## 4. Próximos passos (plano combinado: deixar o app "redondinho" antes da fase 4)
 
 **Fase 3.5 — polimento (nesta ordem):**
-1. Franklin testa no celular: Exportar, Páginas e o novo Página por página.
+1. ✅ Franklin testou no celular (versão release instalada, estável e abrindo rápido): Exportar, Páginas, Página por página.
 2. ✅ Trocar o modo de leitura direto no leitor (menu ⋮ → Modo de leitura; também vira o padrão nos Ajustes).
 3. ✅ Girar o celular no modo página por página: reencaixa a página atual (`onViewSizeChanged`).
 3a. ✅ Carregamento: capas em PNG (`CoverCacheService`). Medido no emulador: abrir o app em debug 3,4–5,6 s × release 0,7–1,3 s → a lentidão sentida é principalmente da versão debug.
 3b. ✅ Ícone original: "B · Marcador" (página branca + fita laranja + ponto azul).
-3c. Instalar uma versão **release** no celular do Franklin (bem mais rápida que a debug).
+3c. ✅ Versão **release** instalada no celular do Franklin.
 4. Pendências da revisão da fase 3: confirmar antes de sair do Organizar páginas com mudanças; limpar `stamps/` sem uso.
 5. Anotar: zoom com dois dedos mesmo com ferramenta ativa; miniaturas acessíveis nos modos Anotar/Editar.
 6. Editar: arrastar imagem/assinatura com o dedo.
@@ -130,4 +130,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-06 | Fase 3: Editar (assinatura, imagem, páginas, exportar). Haiku escreveu telas, Sonnet revisou (1 crítico + 5 importantes corrigidos) | `5cd4604` |
 | 2026-11-06 | Documentação completa em `docs/`, README novo, versão 0.3.0 | `920e821` |
 | 2026-11-13 | Modo "Página por página" + tela limpa (esconde tudo ao tocar); testado no emulador 1080×2400 | `ac01d20` |
-| 2026-11-13 | Trocar modo de leitura no menu ⋮ do leitor; reencaixar ao girar; capas em cache (PNG); ícone novo "Marcador"; testado com livro de 411 págs/131 MB | (este commit) |
+| 2026-11-13 | Trocar modo de leitura no menu ⋮ do leitor; reencaixar ao girar; capas em cache (PNG); ícone novo "Marcador"; testado com livro de 411 págs/131 MB | `60fae59` |
+| 2026-11-20 | CLAUDE.md: fluxo com Antigravity (Gemini) e Codex (ChatGPT) além de Haiku/Sonnet; Flutter 3.50 (analyze limpo, 40 testes ok) | (este commit) |

@@ -1,6 +1,6 @@
 # Lydo — instruções para o Claude
 
-Leitor/editor de PDF para **Android** (por enquanto só Android), em Flutter 3.47 + `pdfrx` (PDFium).
+Leitor/editor de PDF para **Android** (por enquanto só Android), em Flutter 3.50 + `pdfrx` (PDFium).
 Repositório: https://github.com/nilknarfsam/Lydo_PDF
 
 ## Memória do projeto
@@ -22,14 +22,24 @@ modelos mais baratos:
 
 | Tarefa | Quem faz | Como |
 |---|---|---|
-| Coordenar: planejar com o Franklin, briefings, conferir cada entrega, redirecionar | **principal** + Franklin | direto |
-| Partes minuciosas/delicadas: API do pdfrx (coordenadas, `PdfViewerParams`, edição do PDF), bugs difíceis | **principal** | direto |
-| **Escrever o código** (widgets, telas, repositórios, controllers, testes, textos, estilo) | subagente **Haiku** | `Agent` com `model: "haiku"` |
-| **Revisar** cada entrega do Haiku | subagente **Sonnet** | `Agent` com `model: "sonnet"`, checklist abaixo; só aponta, não edita |
+| Coordenar: planejar com o Franklin, briefings, conferir cada entrega, redirecionar | **principal (Opus)** + Franklin | direto |
+| Partes minuciosas/delicadas: API do pdfrx (coordenadas, `PdfViewerParams`, gestos do `PdfViewer`, FFI/edição do PDF), bugs difíceis | **principal** | direto |
+| **Escrever o código** comum (widgets, telas, diálogos, repositórios, controllers, testes, textos) | **Haiku** (padrão) | `Agent` com `model: "haiku"` |
+| Código em volume (várias telas/arquivos repetitivos) ou quando o Haiku errou 2× | **Antigravity** (Gemini 3.8 Flash) | `executar_antigravity`, `modelo="gemini-3.8-flash-medium"` (ou `-high` se a lógica for delicada) |
+| Lógica que pede mais raciocínio, ou segunda opinião de plano | **Codex** (ChatGPT) | `executar_codex` (`modo="plan"` para só opinar) |
+| **Revisar** cada entrega (de qualquer executor) | subagente **Sonnet** | `Agent` com `model: "sonnet"`, checklist abaixo; só aponta, não edita |
+| Imagens (ícones, ilustrações, telas de exemplo) | **Codex** | `gerar_imagem`, salvar em rascunho e mostrar ao Franklin antes de usar |
 
-Ciclo de cada tarefa: principal escreve o briefing → Haiku implementa → Sonnet revisa e lista
-problemas → principal decide o que vale corrigir e devolve ao Haiku (ou corrige se for delicado)
-→ principal roda `analyze`/`test` e confere o diff.
+Ciclo de cada tarefa: principal escreve o briefing → executor (Haiku/Antigravity/Codex) implementa
+→ Sonnet revisa e lista problemas → principal decide o que vale corrigir e devolve ao executor
+(ou corrige se for delicado) → principal roda `analyze`/`test` e confere o diff.
+
+Regras dos motores externos (Antigravity/Codex):
+- Antes do primeiro uso na sessão: `verificar_antigravity` / `verificar_codex`.
+- Só rodam com **working tree limpo** e numa **branch de trabalho** (nunca na `main`), para o resultado ser revisável por `git diff`.
+- Eles não veem esta conversa: o briefing é uma "issue" completa (objetivo, arquivos exatos, arquivo de referência para o padrão, regras deste CLAUDE.md que se aplicam, o que NÃO tocar, critério de aceite) e manda ler `CLAUDE.md` e `MEMORIA.md`.
+- Nunca dois executores em `accept-edits` ao mesmo tempo no projeto.
+- O relato do executor não prova nada: conferir `git diff --stat` (arquivo inesperado é alerta), ler o diff dos arquivos centrais e rodar `analyze`/`test`.
 
 Economia:
 - Mudança de 1 arquivo ou poucas linhas: o principal faz direto (subagente começa do zero e relê tudo, custaria mais).
@@ -43,7 +53,7 @@ Regras da delegação:
 - Dois subagentes nunca editam o mesmo arquivo ao mesmo tempo.
 - Peças independentes podem rodar em paralelo.
 - O Opus sempre confere o resultado (diff + `flutter analyze` + `flutter test`) antes de dizer que terminou.
-- Código que mexe na API do `pdfrx` (coordenadas, `PdfViewerParams`, texto da página) fica com o principal ou o Sonnet, nunca com o Haiku.
+- Código que mexe na API do `pdfrx` (coordenadas, `PdfViewerParams`, texto da página) fica com o principal ou o Sonnet, nunca com o Haiku nem com o Antigravity.
 
 ## Convenções de código (obrigatórias)
 
