@@ -18,6 +18,7 @@ _Última atualização: 2026-11-13 — modo "Página por página" + tela limpa; 
 | 4+ | Juntar/dividir, OCR, resumo com IA, "Abrir com" de outros apps | 📋 ideias |
 
 - **Testes:** 43 passando (`flutter test`). `flutter analyze` sem avisos. Flutter 3.50 → AGP 9.1.1 (`android/settings.gradle.kts`).
+- **Assinatura:** release assinada com a chave de debug DESTE PC (`~/.android/debug.keystore`). Em 2026-11-20 o app foi desinstalado do celular (chave diferente) e reinstalado; trocar de PC sem copiar essa chave obriga a desinstalar de novo. Pendente: chave de release própria fora do Git.
 - **adb** não está no PATH: `$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe`.
 - **Último commit:** ver `git log -1`.
 - **Emulador para conferir telas:** AVD `Medium_Phone_API_36.1` (1080×2400, igual ao Moto Edge 20 do Franklin; densidade 400 via `adb shell wm density 400`). PDF de teste em `/sdcard/Download/teste_lydo.pdf`. No Git Bash use `MSYS_NO_PATHCONV=1` com `adb`.
