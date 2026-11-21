@@ -44,6 +44,10 @@ class ReaderController {
   final chromeVisible = ValueNotifier(true);
   final mode = ValueNotifier(ReaderMode.read);
 
+  /// Faixa de miniaturas aberta por cima da barra de ferramentas (Anotar/Editar).
+  final toolThumbs = ValueNotifier(false);
+  void toggleToolThumbs() => toolThumbs.value = !toolThumbs.value;
+
   /// Modo de rolagem em uso (começa no dos Ajustes; dá para trocar no leitor).
   final ValueNotifier<ScrollMode> scrollMode;
 
@@ -323,6 +327,7 @@ class ReaderController {
       pendingStamp,
       movingImage,
       editBusy,
+      toolThumbs,
     ]) {
       n.dispose();
     }

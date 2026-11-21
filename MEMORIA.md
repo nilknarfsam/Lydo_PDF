@@ -95,7 +95,8 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 - **Capas:** `HomeController.coverFor` → `CoverCacheService` (PNG 320 px). O nome segue o arquivo do PDF, então PDF reorganizado ganha capa nova; remover da biblioteca apaga a capa.
 - **Tela limpa:** tocar na página esconde barras, indicador de página e as barras do Android (`immersiveSticky`); ao sair do leitor volta `edgeToEdge`.
 - **Posição salva:** `DocumentEntry.lastLayout` = nome do `ScrollMode` (lê o antigo `lastLayoutHorizontal`).
-- **Gesto no modo Anotar:** com ferramenta ativa o dedo desenha; tocar de novo na ferramenta solta e a página volta a rolar/dar zoom.
+- **Gesto no modo Anotar:** com ferramenta ativa, 1 dedo desenha e 2 dedos dão zoom/rolam. A `AnnotationGestureLayer` fica por cima do PdfViewer e engole os toques, então a pinça é feita à mão: `onScale*` + `pointerCount`, e a matriz nova vai em `viewer.value = viewer.makeMatrixInSafeRange(m)` (tela = doc × zoom + translação). Se entrar o 2º dedo, o traço em andamento é cancelado; depois de uma pinça, 1 dedo só volta a desenhar após soltar todos (estado zerado no `onPointerDown`, porque o recognizer nem sempre chama `onScaleEnd`). Tocar de novo na ferramenta solta e a página volta ao gesto normal do pdfrx.
+- **Miniaturas em Anotar/Editar:** `ReaderController.toolThumbs` liga a faixa por cima da barra de ferramentas (botão redondo ao lado da pílula da página).
 - **Editar o texto original do PDF** (fonte/tamanho, como na tela de referência) é muito difícil: o plano é "cobrir e escrever por cima".
 - **Fora por enquanto:** avatar "FC" (sem login), ajustes "Salvar rascunhos / Preservar original / Pasta de exportação" (voltam na fase 3).
 - **Dependências:** pdfrx, shared_preferences, file_picker, path_provider, material_ui, wakelock_plus, pdfium_dart e ffi (estes dois já vinham com o pdfrx; usados na exportação). Nova dependência → avisar o Franklin.
@@ -110,15 +111,14 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 3b. ✅ Ícone original: "B · Marcador" (página branca + fita laranja + ponto azul).
 3c. ✅ Versão **release** instalada no celular do Franklin.
 4. ✅ Organizar páginas pergunta "Descartar mudanças?" ao voltar com mudanças (`PopScope`); `StampCleanupService` limpa `stamps/` sem uso ao abrir o app e ao remover um PDF.
-5. Anotar: zoom com dois dedos mesmo com ferramenta ativa; miniaturas acessíveis nos modos Anotar/Editar.
+5. ✅ (aguardando teste do Franklin) Anotar: dois dedos dão zoom/rolam mesmo com ferramenta ativa; botão de miniaturas ao lado da pílula da página em Anotar/Editar.
 6. Editar: arrastar imagem/assinatura com o dedo.
 
 **Fase 4 — recursos novos:** "Abrir com"/compartilhar de outros apps → juntar/dividir PDFs → OCR → resumo com IA.
 
 ## 5. Problemas conhecidos / dívidas
 
-- Com uma ferramenta de anotação ativa, não dá para dar zoom com dois dedos (é preciso soltar a ferramenta).
-- Miniaturas ficam escondidas nos modos Anotar/Editar (a barra de ferramentas ocupa o lugar).
+- Pinça com ferramenta ativa não tem inércia nem encaixe de página (modo Página por página): solta onde parou.
 - Imagem/assinatura: só dá para mover/aumentar/diminuir pelo menu (toque nela no modo Editar); não tem arrastar com o dedo ainda.
 - Notas no PDF exportado viram uma caixinha desenhada (não é a nota "pop-up" do PDF).
 - O app antigo "Leitor PDF" (`com.franklin.pdf_reader`) pode ainda estar no celular, e pode ser desinstalado.
@@ -137,4 +137,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-13 | Trocar modo de leitura no menu ⋮ do leitor; reencaixar ao girar; capas em cache (PNG); ícone novo "Marcador"; testado com livro de 411 págs/131 MB | `60fae59` |
 | 2026-11-20 | CLAUDE.md: fluxo com Antigravity (Gemini) e Codex (ChatGPT) além de Haiku/Sonnet; Flutter 3.50 (analyze limpo, 40 testes ok) | — |
 | 2026-11-20 | Organizar: confirmar ao sair com mudanças; limpeza de stamps/ sem uso; AGP 9.1.1 para o Flutter 3.50; release compilada | `1e4e4dc` |
-| 2026-11-20 | Chave de release própria do Lydo (`tools/criar_chave_release.bat` + signingConfig no Gradle) | (este commit) |
+| 2026-11-20 | Chave de release própria do Lydo (`tools/criar_chave_release.bat` + signingConfig no Gradle) | `f49ffd3` |
+| 2026-11-20 | Anotar: zoom com dois dedos com ferramenta ativa; miniaturas em Anotar/Editar; release instalada por cima no celular | (este commit) |

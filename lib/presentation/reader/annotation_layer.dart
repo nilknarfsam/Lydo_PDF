@@ -19,8 +19,7 @@ void paintPageAnnotations(
   PdfPage page,
   Iterable<Annotation> list,
   AnnotationImageCache images,
-) =>
-    paintAnnotations(canvas, pageRect: pageRect, page: page, annotations: list, images: images.images);
+) => paintAnnotations(canvas, pageRect: pageRect, page: page, annotations: list, images: images.images);
 
 /// Caixas de texto e notas como widgets por cima da página (dá para tocar e editar).
 List<Widget> pageAnnotationOverlays({
@@ -37,37 +36,41 @@ List<Widget> pageAnnotationOverlays({
     final pos = PdfPoint(anchor.x, anchor.y).toOffset(page: page, scaledPageSize: pageRectInViewer.size);
     switch (a.type) {
       case AnnotationType.text:
-        widgets.add(Positioned(
-          left: pos.dx,
-          top: pos.dy,
-          child: GestureDetector(
-            onTap: () => onTap(a),
-            child: Text(
-              a.text,
-              style: TextStyle(color: Color(a.color), fontSize: a.width * scale, height: 1.2),
-              textScaler: TextScaler.noScaling,
+        widgets.add(
+          Positioned(
+            left: pos.dx,
+            top: pos.dy,
+            child: GestureDetector(
+              onTap: () => onTap(a),
+              child: Text(
+                a.text,
+                style: TextStyle(color: Color(a.color), fontSize: a.width * scale, height: 1.2),
+                textScaler: TextScaler.noScaling,
+              ),
             ),
           ),
-        ));
+        );
       case AnnotationType.note:
         const size = 30.0;
-        widgets.add(Positioned(
-          left: pos.dx - size / 2,
-          top: pos.dy - size / 2,
-          child: GestureDetector(
-            onTap: () => onTap(a),
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: Color(a.color),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 4, offset: Offset(0, 2))],
+        widgets.add(
+          Positioned(
+            left: pos.dx - size / 2,
+            top: pos.dy - size / 2,
+            child: GestureDetector(
+              onTap: () => onTap(a),
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: Color(a.color),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 4, offset: Offset(0, 2))],
+                ),
+                child: const Icon(Icons.chat_bubble_outline, size: 18, color: Color(0xFF1F2937)),
               ),
-              child: const Icon(Icons.chat_bubble_outline, size: 18, color: Color(0xFF1F2937)),
             ),
           ),
-        ));
+        );
       default:
         break;
     }
@@ -81,16 +84,21 @@ typedef PageHitTester = PageHit? Function(Offset local);
 
 /// Captura os gestos de desenho quando há uma ferramenta ativa.
 /// Sem ferramenta, esta camada não existe e a página rola normalmente.
-class AnnotationGestureLayer extends StatelessWidget {
+///
+/// Um dedo desenha; dois dedos dão zoom e rolam a página (a camada fica por cima
+/// do PdfViewer e engole os toques, então o zoom é aplicado direto na matriz do viewer).
+class AnnotationGestureLayer extends StatefulWidget {
   const AnnotationGestureLayer({
     super.key,
     required this.controller,
+    required this.viewer,
     required this.hitTest,
     required this.onStrokeEnd,
     required this.onPlace,
   });
 
   final AnnotationController controller;
+  final PdfViewerController viewer;
   final PageHitTester hitTest;
   final VoidCallback onStrokeEnd;
 
@@ -98,49 +106,124 @@ class AnnotationGestureLayer extends StatelessWidget {
   final void Function(AnnotationTool tool, PageHit hit) onPlace;
 
   @override
+  State<AnnotationGestureLayer> createState() => _AnnotationGestureLayerState();
+}
+
+class _AnnotationGestureLayerState extends State<AnnotationGestureLayer> {
+  /// Houve pinça neste gesto: até soltar todos os dedos, um dedo só não desenha.
+  bool _pinched = false;
+  bool _drawing = false;
+  Matrix4? _pinchStart;
+  Offset _focalStart = Offset.zero;
+
+  AnnotationController get _a => widget.controller;
+
+  /// Dedos na tela agora. Se a pinça terminar sem mexer o último dedo, o recognizer
+  /// não chama onScaleEnd; por isso o estado do gesto é zerado no primeiro dedo.
+  int _pointers = 0;
+
+  void _onPointerDown(PointerDownEvent _) {
+    if (_pointers++ == 0 && !_drawing) {
+      _pinched = false;
+      _pinchStart = null;
+    }
+  }
+
+  void _onPointerUp(PointerEvent _) {
+    if (_pointers > 0) _pointers--;
+  }
+
+  // O ScaleGestureRecognizer encerra e recomeça o gesto quando entra/sai um dedo;
+  // pointerCount diz quantos dedos estão na tela em cada recomeço.
+  void _onStart(ScaleStartDetails d, bool draws) {
+    if (d.pointerCount >= 2) {
+      if (_drawing) _a.cancelStroke();
+      _drawing = false;
+      _pinched = true;
+      _pinchStart = widget.viewer.value.clone();
+      _focalStart = d.localFocalPoint;
+      return;
+    }
+    if (_pinched || !draws) return;
+    final hit = widget.hitTest(d.localFocalPoint);
+    if (hit == null) return;
+    _a.beginStroke(hit.page, hit.point, d.localFocalPoint);
+    _drawing = true;
+  }
+
+  void _onUpdate(ScaleUpdateDetails d) {
+    final start = _pinchStart;
+    if (d.pointerCount >= 2 && start != null) {
+      final v = widget.viewer;
+      // Matriz do viewer: ponto na tela = ponto no documento × zoom + translação.
+      final z0 = start.storage[0];
+      final z = (z0 * d.scale).clamp(v.minScale, v.maxScale);
+      final docPoint = (_focalStart - Offset(start.storage[12], start.storage[13])) / z0;
+      final t = d.localFocalPoint - docPoint * z;
+      final m = start.clone()
+        ..setEntry(0, 0, z)
+        ..setEntry(1, 1, z)
+        ..setEntry(2, 2, z)
+        ..setEntry(0, 3, t.dx)
+        ..setEntry(1, 3, t.dy);
+      v.value = v.makeMatrixInSafeRange(m);
+      return;
+    }
+    if (!_drawing) return;
+    final hit = widget.hitTest(d.localFocalPoint);
+    if (hit != null) _a.extendStroke(hit.page, hit.point, d.localFocalPoint);
+  }
+
+  void _onEnd(ScaleEndDetails d) {
+    if (d.pointerCount > 0) return; // ainda tem dedo na tela: o gesto vai recomeçar
+    if (_drawing) widget.onStrokeEnd();
+    _drawing = false;
+    _pinched = false;
+    _pinchStart = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = _a;
+    final hitTest = widget.hitTest;
     return ValueListenableBuilder<AnnotationTool?>(
       valueListenable: controller.tool,
       builder: (context, tool, _) {
         if (tool == null) return const SizedBox.shrink();
         final draws = tool == AnnotationTool.highlight || tool == AnnotationTool.pen;
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onPanStart: draws
-              ? (d) {
-                  final hit = hitTest(d.localPosition);
-                  if (hit != null) controller.beginStroke(hit.page, hit.point, d.localPosition);
-                }
-              : null,
-          onPanUpdate: draws
-              ? (d) {
-                  final hit = hitTest(d.localPosition);
-                  if (hit != null) controller.extendStroke(hit.page, hit.point, d.localPosition);
-                }
-              : null,
-          onPanEnd: draws ? (_) => onStrokeEnd() : null,
-          onPanCancel: draws ? controller.cancelStroke : null,
-          onTapUp: (d) {
-            final hit = hitTest(d.localPosition);
-            if (hit == null) return;
-            if (draws) {
-              // Toque simples com caneta = ponto; com realce = marca a palavra.
-              controller.beginStroke(hit.page, hit.point, d.localPosition);
-              onStrokeEnd();
-            } else {
-              onPlace(tool, hit);
-            }
-          },
-          child: RepaintBoundary(
-            child: ValueListenableBuilder<List<Offset>>(
-              valueListenable: controller.draft,
-              builder: (_, points, _) => CustomPaint(
-                size: Size.infinite,
-                painter: _DraftPainter(
-                  points: points,
-                  color: Color(controller.color),
-                  highlight: tool == AnnotationTool.highlight,
-                  size: controller.size.value,
+        final onStrokeEnd = widget.onStrokeEnd;
+        final onPlace = widget.onPlace;
+        return Listener(
+          onPointerDown: _onPointerDown,
+          onPointerUp: _onPointerUp,
+          onPointerCancel: _onPointerUp,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onScaleStart: (d) => _onStart(d, draws),
+            onScaleUpdate: _onUpdate,
+            onScaleEnd: _onEnd,
+            onTapUp: (d) {
+              final hit = hitTest(d.localPosition);
+              if (hit == null) return;
+              if (draws) {
+                // Toque simples com caneta = ponto; com realce = marca a palavra.
+                controller.beginStroke(hit.page, hit.point, d.localPosition);
+                onStrokeEnd();
+              } else {
+                onPlace(tool, hit);
+              }
+            },
+            child: RepaintBoundary(
+              child: ValueListenableBuilder<List<Offset>>(
+                valueListenable: controller.draft,
+                builder: (_, points, _) => CustomPaint(
+                  size: Size.infinite,
+                  painter: _DraftPainter(
+                    points: points,
+                    color: Color(controller.color),
+                    highlight: tool == AnnotationTool.highlight,
+                    size: controller.size.value,
+                  ),
                 ),
               ),
             ),
@@ -161,7 +244,11 @@ class _DraftPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size s) {
     if (points.isEmpty) return;
-    final base = switch (size) { StrokeSize.thin => 0.6, StrokeSize.medium => 1.0, StrokeSize.thick => 1.6 };
+    final base = switch (size) {
+      StrokeSize.thin => 0.6,
+      StrokeSize.medium => 1.0,
+      StrokeSize.thick => 1.6,
+    };
     final paint = Paint()
       ..color = highlight ? color.withValues(alpha: 0.45) : color
       ..style = PaintingStyle.stroke
@@ -292,7 +379,11 @@ class _Palette extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Container(
                         width: 24,
-                        height: switch (s) { StrokeSize.thin => 2, StrokeSize.medium => 4, StrokeSize.thick => 7 },
+                        height: switch (s) {
+                          StrokeSize.thin => 2,
+                          StrokeSize.medium => 4,
+                          StrokeSize.thick => 7,
+                        },
                         decoration: BoxDecoration(color: _onBar, borderRadius: BorderRadius.circular(4)),
                       ),
                     ),
@@ -337,7 +428,10 @@ class _Tools extends StatelessWidget {
                 children: [
                   Icon(icon, color: _onBar, size: 26),
                   const SizedBox(height: 4),
-                  Text(label, style: const TextStyle(color: _onBar, fontSize: 13, fontWeight: FontWeight.w500)),
+                  Text(
+                    label,
+                    style: const TextStyle(color: _onBar, fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
                 ],
               ),
             ),
@@ -357,16 +451,35 @@ class _Tools extends StatelessWidget {
         valueListenable: controller.tool,
         builder: (_, current, _) => Row(
           children: [
-            item(AnnotationTool.highlight, Icons.border_color_outlined, 'Realçar', current,
-                () => controller.selectTool(AnnotationTool.highlight)),
-            item(AnnotationTool.pen, Icons.gesture, 'Caneta', current,
-                () => controller.selectTool(AnnotationTool.pen)),
-            item(AnnotationTool.text, Icons.text_fields, 'Texto', current,
-                () => controller.selectTool(AnnotationTool.text)),
-            item(AnnotationTool.note, Icons.chat_bubble_outline, 'Nota', current,
-                () => controller.selectTool(AnnotationTool.note)),
-            item(current == AnnotationTool.eraser ? AnnotationTool.eraser : null, Icons.more_horiz, 'Mais',
-                current, onMore),
+            item(
+              AnnotationTool.highlight,
+              Icons.border_color_outlined,
+              'Realçar',
+              current,
+              () => controller.selectTool(AnnotationTool.highlight),
+            ),
+            item(AnnotationTool.pen, Icons.gesture, 'Caneta', current, () => controller.selectTool(AnnotationTool.pen)),
+            item(
+              AnnotationTool.text,
+              Icons.text_fields,
+              'Texto',
+              current,
+              () => controller.selectTool(AnnotationTool.text),
+            ),
+            item(
+              AnnotationTool.note,
+              Icons.chat_bubble_outline,
+              'Nota',
+              current,
+              () => controller.selectTool(AnnotationTool.note),
+            ),
+            item(
+              current == AnnotationTool.eraser ? AnnotationTool.eraser : null,
+              Icons.more_horiz,
+              'Mais',
+              current,
+              onMore,
+            ),
           ],
         ),
       ),

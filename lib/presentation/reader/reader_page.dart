@@ -571,6 +571,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
                       ? const SizedBox.shrink()
                       : AnnotationGestureLayer(
                           controller: _a,
+                          viewer: _c.viewer,
                           hitTest: _hitTest,
                           onStrokeEnd: () => _a.endStroke(_c.document.value),
                           onPlace: _onPlace,
@@ -616,10 +617,26 @@ class _Chrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([controller.chromeVisible, controller.mode]),
+      listenable: Listenable.merge([controller.chromeVisible, controller.mode, controller.toolThumbs]),
       builder: (context, _) {
         final visible = controller.chromeVisible.value;
         final annotating = controller.mode.value != ReaderMode.read;
+        // Em Anotar/Editar as miniaturas são opcionais e ficam por cima da barra de ferramentas.
+        final thumbsOverTools = annotating && controller.toolThumbs.value;
+        final toolbar = switch (controller.mode.value) {
+          ReaderMode.annotate => AnnotationToolbar(controller: annotations, onMore: onMore),
+          ReaderMode.edit => ListenableBuilder(
+              listenable: Listenable.merge(
+                [controller.pendingStamp, controller.movingImage, controller.editBusy],
+              ),
+              builder: (_, _) => EditToolbar(
+                onAction: onEditAction,
+                hint: controller.editHint,
+                busy: controller.editBusy.value,
+              ),
+            ),
+          ReaderMode.read => null,
+        };
         return Stack(
         children: [
           AnimatedPositioned(
@@ -652,31 +669,35 @@ class _Chrome extends StatelessWidget {
           if (visible)
             Positioned(
               right: 16,
-              bottom: annotating ? 172 : 140,
-              child: SafeArea(child: _PagePill(controller: controller, onTap: onAskPage)),
+              bottom: (annotating ? 172 : 140) + (thumbsOverTools ? _ThumbnailStripState.stripHeight : 0),
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    if (annotating) ...[
+                      _ThumbsToggle(active: thumbsOverTools, onTap: controller.toggleToolThumbs),
+                      const SizedBox(width: 8),
+                    ],
+                    _PagePill(controller: controller, onTap: onAskPage),
+                  ],
+                ),
+              ),
             ),
           AnimatedPositioned(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
             left: 0,
             right: 0,
-            bottom: visible ? 0 : -260,
+            bottom: visible ? 0 : -260 - (thumbsOverTools ? _ThumbnailStripState.stripHeight : 0),
             child: RepaintBoundary(
-              // No modo Anotar a barra de ferramentas ocupa o lugar das miniaturas.
-              child: switch (controller.mode.value) {
-                ReaderMode.annotate => AnnotationToolbar(controller: annotations, onMore: onMore),
-                ReaderMode.edit => ListenableBuilder(
-                    listenable: Listenable.merge(
-                      [controller.pendingStamp, controller.movingImage, controller.editBusy],
+              child: toolbar == null
+                  ? _ThumbnailStrip(controller: controller)
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (thumbsOverTools) _ThumbnailStrip(controller: controller, safeBottom: false),
+                        toolbar,
+                      ],
                     ),
-                    builder: (_, _) => EditToolbar(
-                      onAction: onEditAction,
-                      hint: controller.editHint,
-                      busy: controller.editBusy.value,
-                    ),
-                  ),
-                ReaderMode.read => _ThumbnailStrip(controller: controller),
-              },
             ),
           ),
         ],
@@ -964,16 +985,46 @@ class _PagePill extends StatelessWidget {
   }
 }
 
+/// Botão redondo ao lado da pílula da página: mostra/esconde as miniaturas em Anotar/Editar.
+class _ThumbsToggle extends StatelessWidget {
+  const _ThumbsToggle({required this.active, required this.onTap});
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: active ? 'Esconder miniaturas' : 'Mostrar miniaturas',
+      child: Material(
+        color: active ? LydoColors.primary : const Color(0xE6343C4B),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: const Padding(
+            padding: EdgeInsets.all(9),
+            child: Icon(Icons.view_carousel_outlined, color: _onBar, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Faixa de miniaturas: a página atual fica destacada e centralizada.
 class _ThumbnailStrip extends StatefulWidget {
-  const _ThumbnailStrip({required this.controller});
+  const _ThumbnailStrip({required this.controller, this.safeBottom = true});
   final ReaderController controller;
+
+  /// Falso quando a faixa fica em cima da barra de ferramentas (a barra já cuida da borda de baixo).
+  final bool safeBottom;
 
   @override
   State<_ThumbnailStrip> createState() => _ThumbnailStripState();
 }
 
 class _ThumbnailStripState extends State<_ThumbnailStrip> {
+  static const stripHeight = 124.0;
   static const _itemWidth = 72.0;
   static const _gap = 12.0;
   final _scroll = ScrollController();
@@ -1010,8 +1061,9 @@ class _ThumbnailStripState extends State<_ThumbnailStrip> {
       color: const Color(0xF20D121B),
       child: SafeArea(
         top: false,
+        bottom: widget.safeBottom,
         child: SizedBox(
-          height: 124,
+          height: stripHeight,
           child: ValueListenableBuilder<PdfDocument?>(
             valueListenable: c.document,
             builder: (context, doc, _) {
