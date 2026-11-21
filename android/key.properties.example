@@ -1,0 +1,6 @@
+# Copie para android/key.properties (que fica fora do Git) e preencha.
+# Guarde o .jks e as senhas num lugar seguro: sem eles não dá para atualizar o app instalado.
+storeFile=C:/Users/SEU_USUARIO/.lydo/lydo-release.jks
+storePassword=SUA_SENHA
+keyAlias=lydo
+keyPassword=SUA_SENHA

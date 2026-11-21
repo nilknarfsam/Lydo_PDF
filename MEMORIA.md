@@ -18,7 +18,7 @@ _Última atualização: 2026-11-13 — modo "Página por página" + tela limpa; 
 | 4+ | Juntar/dividir, OCR, resumo com IA, "Abrir com" de outros apps | 📋 ideias |
 
 - **Testes:** 43 passando (`flutter test`). `flutter analyze` sem avisos. Flutter 3.50 → AGP 9.1.1 (`android/settings.gradle.kts`).
-- **Assinatura:** release assinada com a chave de debug DESTE PC (`~/.android/debug.keystore`). Em 2026-11-20 o app foi desinstalado do celular (chave diferente) e reinstalado; trocar de PC sem copiar essa chave obriga a desinstalar de novo. Pendente: chave de release própria fora do Git.
+- **Assinatura:** chave de release própria `C:\Users\nilkn\.lydo\lydo-release.jks` (alias `lydo`, `CN=Lydo`, SHA-256 `08d784c7…be64238`), lida de `android/key.properties` (fora do Git; modelo em `android/key.properties.example`). Sem o key.properties, a release cai na chave de debug. Criada com `tools/criar_chave_release.bat`. Em outro PC: copiar o .jks e o key.properties. O Franklin guarda o backup.
 - **adb** não está no PATH: `$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe`.
 - **Último commit:** ver `git log -1`.
 - **Emulador para conferir telas:** AVD `Medium_Phone_API_36.1` (1080×2400, igual ao Moto Edge 20 do Franklin; densidade 400 via `adb shell wm density 400`). PDF de teste em `/sdcard/Download/teste_lydo.pdf`. No Git Bash use `MSYS_NO_PATHCONV=1` com `adb`.
@@ -136,4 +136,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-13 | Modo "Página por página" + tela limpa (esconde tudo ao tocar); testado no emulador 1080×2400 | `ac01d20` |
 | 2026-11-13 | Trocar modo de leitura no menu ⋮ do leitor; reencaixar ao girar; capas em cache (PNG); ícone novo "Marcador"; testado com livro de 411 págs/131 MB | `60fae59` |
 | 2026-11-20 | CLAUDE.md: fluxo com Antigravity (Gemini) e Codex (ChatGPT) além de Haiku/Sonnet; Flutter 3.50 (analyze limpo, 40 testes ok) | — |
-| 2026-11-20 | Organizar: confirmar ao sair com mudanças; limpeza de stamps/ sem uso; AGP 9.1.1 para o Flutter 3.50; release compilada | (este commit) |
+| 2026-11-20 | Organizar: confirmar ao sair com mudanças; limpeza de stamps/ sem uso; AGP 9.1.1 para o Flutter 3.50; release compilada | `1e4e4dc` |
+| 2026-11-20 | Chave de release própria do Lydo (`tools/criar_chave_release.bat` + signingConfig no Gradle) | (este commit) |
