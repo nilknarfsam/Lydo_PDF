@@ -51,3 +51,4 @@ app.*.map.json
 /*.pdf
 
 /android/build/
+/backup_chave/

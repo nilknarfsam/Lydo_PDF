@@ -18,7 +18,7 @@ _Última atualização: 2026-11-13 — modo "Página por página" + tela limpa; 
 | 4+ | Juntar/dividir, OCR, resumo com IA, "Abrir com" de outros apps | 📋 ideias |
 
 - **Testes:** 43 passando (`flutter test`). `flutter analyze` sem avisos. Flutter 3.50 → AGP 9.1.1 (`android/settings.gradle.kts`).
-- **Assinatura:** chave de release própria `C:\Users\nilkn\.lydo\lydo-release.jks` (alias `lydo`, `CN=Lydo`, SHA-256 `08d784c7…be64238`), lida de `android/key.properties` (fora do Git; modelo em `android/key.properties.example`). Sem o key.properties, a release cai na chave de debug. Criada com `tools/criar_chave_release.bat`. Em outro PC: copiar o .jks e o key.properties. O Franklin guarda o backup.
+- **Assinatura:** chave de release própria `C:\Users\nilkn\.lydo\lydo-release.jks` (alias `lydo`, `CN=Lydo`, SHA-256 `08d784c7…be64238`), lida de `android/key.properties` (fora do Git; modelo em `android/key.properties.example`). Sem o key.properties, a release cai na chave de debug. Criada com `tools/criar_chave_release.bat`. Em outro PC: copiar o .jks e o key.properties. Backup: pasta `backup_chave/` no projeto (fora do Git) → Franklin sobe para o Drive em "💻 Trabalho e Projetos / Lydo PDF / Chave de release (backup)" (pasta com acesso só dele). Release com essa chave instalada no celular em 2026-11-20.
 - **adb** não está no PATH: `$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe`.
 - **Último commit:** ver `git log -1`.
 - **Emulador para conferir telas:** AVD `Medium_Phone_API_36.1` (1080×2400, igual ao Moto Edge 20 do Franklin; densidade 400 via `adb shell wm density 400`). PDF de teste em `/sdcard/Download/teste_lydo.pdf`. No Git Bash use `MSYS_NO_PATHCONV=1` com `adb`.
