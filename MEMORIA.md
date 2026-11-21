@@ -96,6 +96,9 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 - **Tela limpa:** tocar na página esconde barras, indicador de página e as barras do Android (`immersiveSticky`); ao sair do leitor volta `edgeToEdge`.
 - **Posição salva:** `DocumentEntry.lastLayout` = nome do `ScrollMode` (lê o antigo `lastLayoutHorizontal`).
 - **Gesto no modo Anotar:** com ferramenta ativa, 1 dedo desenha e 2 dedos dão zoom/rolam. A `AnnotationGestureLayer` fica por cima do PdfViewer e engole os toques, então a pinça é feita à mão: `onScale*` + `pointerCount`, e a matriz nova vai em `viewer.value = viewer.makeMatrixInSafeRange(m)` (tela = doc × zoom + translação). Se entrar o 2º dedo, o traço em andamento é cancelado; depois de uma pinça, 1 dedo só volta a desenhar após soltar todos (estado zerado no `onPointerDown`, porque o recognizer nem sempre chama `onScaleEnd`). Tocar de novo na ferramenta solta e a página volta ao gesto normal do pdfrx.
+- **Barras do leitor em vidro fosco:** `_Glass` em `reader_page.dart` (cor translúcida + `BackdropFilter` blur 14) na barra de cima, abas e faixa de miniaturas.
+- **Celular de lado:** barra + abas numa linha (`compact`), miniaturas de 84 px. Rolagem vertical: ao girar/abrir deitado, encaixa a página pela largura mantendo a altura lida (`_fitWidthKeepingPlace`). Página por página deitado: encaixe padrão = largura, do topo (`_baseFit`); rolar para baixo lê a mesma página (inércia livre, só recentraliza se escorregou >24 px para o lado); vira a página só com deslize mais horizontal que vertical. `onViewSizeChanged` só age quando a orientação muda (teclado não reencaixa).
+- **Emulador deste PC:** AVD `MotoEdge20` (subir com `-gpu swiftshader_indirect`; o boot normal travou "offline"). Girar: `adb shell cmd window user-rotation lock 1` (0 = em pé).
 - **Miniaturas em Anotar/Editar:** `ReaderController.toolThumbs` liga a faixa por cima da barra de ferramentas (botão redondo ao lado da pílula da página).
 - **Editar o texto original do PDF** (fonte/tamanho, como na tela de referência) é muito difícil: o plano é "cobrir e escrever por cima".
 - **Fora por enquanto:** avatar "FC" (sem login), ajustes "Salvar rascunhos / Preservar original / Pasta de exportação" (voltam na fase 3).
@@ -138,4 +141,5 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-20 | CLAUDE.md: fluxo com Antigravity (Gemini) e Codex (ChatGPT) além de Haiku/Sonnet; Flutter 3.50 (analyze limpo, 40 testes ok) | — |
 | 2026-11-20 | Organizar: confirmar ao sair com mudanças; limpeza de stamps/ sem uso; AGP 9.1.1 para o Flutter 3.50; release compilada | `1e4e4dc` |
 | 2026-11-20 | Chave de release própria do Lydo (`tools/criar_chave_release.bat` + signingConfig no Gradle) | `f49ffd3` |
-| 2026-11-20 | Anotar: zoom com dois dedos com ferramenta ativa; miniaturas em Anotar/Editar; release instalada por cima no celular | (este commit) |
+| 2026-11-20 | Anotar: zoom com dois dedos com ferramenta ativa; miniaturas em Anotar/Editar; release instalada por cima no celular | `31948c0` |
+| 2026-11-21 | Leitor: barras em vidro fosco; layout compacto e página pela largura com o celular de lado; testado no emulador | (este commit) |

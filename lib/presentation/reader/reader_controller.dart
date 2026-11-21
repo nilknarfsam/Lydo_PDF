@@ -16,14 +16,11 @@ enum ReaderMode { read, annotate, edit }
 /// Estado e regras do leitor: página atual, busca, modo noturno e o
 /// salvamento automático da posição de leitura.
 class ReaderController {
-  ReaderController({
-    required DocumentEntry entry,
-    required this.repository,
-    required this.settings,
-  })  : _entry = entry,
-        currentPage = ValueNotifier(entry.lastPage),
-        pageCount = ValueNotifier(entry.pageCount),
-        scrollMode = ValueNotifier(settings.scrollMode) {
+  ReaderController({required DocumentEntry entry, required this.repository, required this.settings})
+    : _entry = entry,
+      currentPage = ValueNotifier(entry.lastPage),
+      pageCount = ValueNotifier(entry.pageCount),
+      scrollMode = ValueNotifier(settings.scrollMode) {
     searcher = PdfTextSearcher(viewer)..addListener(_onSearchChanged);
     if (settings.keepScreenOn) WakelockPlus.enable();
   }
@@ -64,8 +61,8 @@ class ReaderController {
   String? get editHint => pendingStamp.value != null
       ? 'Toque na página onde quer colocar'
       : movingImage.value != null
-          ? 'Toque no novo lugar da imagem'
-          : null;
+      ? 'Toque no novo lugar da imagem'
+      : null;
 
   /// Busca aberta na barra superior.
   final searchOpen = ValueNotifier(false);
@@ -97,8 +94,7 @@ class ReaderController {
   Offset? _gestureStartCenter;
 
   /// Página inicial que o PdfViewer deve abrir.
-  int initialPage(int documentPages) =>
-      settings.resumeLastPage ? _entry.lastPage.clamp(1, documentPages) : 1;
+  int initialPage(int documentPages) => settings.resumeLastPage ? _entry.lastPage.clamp(1, documentPages) : 1;
 
   /// Chamado quando o PDF terminou de carregar: devolve o leitor ao ponto
   /// exato (zoom + rolagem) onde a pessoa parou.
@@ -115,6 +111,8 @@ class ReaderController {
     } else if (settings.resumeLastPage && sameLayout && matrix != null && matrix.length == 16) {
       await viewer.goTo(Matrix4.fromList(matrix), duration: Duration.zero);
     }
+    // Abriu deitado na rolagem vertical (ou com posição salva em pé): página pela largura.
+    if (!paged && !horizontal && _wide) await _fitWidthKeepingPlace(onlyIfSmaller: true);
     _restored = true;
     viewer.addListener(_scheduleSave);
     _scheduleSave();
@@ -132,10 +130,18 @@ class ReaderController {
     return viewer.goToPage(pageNumber: target);
   }
 
-  /// Mostra a página [page] inteira, centralizada.
+  /// Tela deitada (celular de lado): a página encaixa pela largura, não inteira.
+  bool get _wide => viewer.isReady && viewer.viewSize.width > viewer.viewSize.height;
+
+  /// Encaixe padrão da página no modo página por página: em pé, a página inteira;
+  /// de lado, pela largura (começando do topo), senão o texto fica minúsculo.
+  Matrix4? _baseFit(int page) =>
+      _wide ? viewer.calcMatrixFitWidthForPage(pageNumber: page) : viewer.calcMatrixForFit(pageNumber: page);
+
+  /// Mostra a página [page] no encaixe padrão (inteira em pé, pela largura de lado).
   Future<void> fitPage(int page, {Duration duration = const Duration(milliseconds: 220)}) async {
     if (!viewer.isReady) return;
-    final matrix = viewer.calcMatrixForFit(pageNumber: page);
+    final matrix = _baseFit(page);
     if (matrix == null) return;
     await viewer.goTo(matrix, duration: duration);
     currentPage.value = page;
@@ -160,9 +166,25 @@ class ReaderController {
   /// A tela mudou de tamanho (ex.: celular girado): no modo página por
   /// página, reencaixa a página atual inteira.
   void onViewSizeChanged(Size size, Size? oldSize) {
-    if (!paged || oldSize == null || size == oldSize) return;
+    if (oldSize == null || size == oldSize || horizontal) return;
+    // Só ao girar (largura e altura trocam de papel), não quando o teclado abre.
+    if ((size.width > size.height) == (oldSize.width > oldSize.height)) return;
     final page = currentPage.value;
-    WidgetsBinding.instance.addPostFrameCallback((_) => fitPage(page, duration: Duration.zero));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => paged ? fitPage(page, duration: Duration.zero) : _fitWidthKeepingPlace(),
+    );
+  }
+
+  /// Rolagem vertical: encaixa a página atual pela largura sem perder o trecho
+  /// que estava sendo lido (mantém a altura no documento).
+  Future<void> _fitWidthKeepingPlace({bool onlyIfSmaller = false}) async {
+    if (!viewer.isReady) return;
+    final page = currentPage.value.clamp(1, viewer.layout.pageLayouts.length);
+    final rect = viewer.layout.pageLayouts[page - 1];
+    final zoom = (viewer.viewSize.width - _margin * 2) / rect.width;
+    if (onlyIfSmaller && viewer.value.zoom >= zoom * 0.95) return;
+    final y = viewer.visibleRect.center.dy;
+    await viewer.goTo(viewer.calcMatrixFor(Offset(rect.center.dx, y), zoom: zoom), duration: Duration.zero);
   }
 
   // ---------- Página por página ----------
@@ -177,9 +199,11 @@ class ReaderController {
   /// Com zoom aumentado, deixa a pessoa andar pela página à vontade.
   void onGestureEnd(Velocity velocity) {
     if (!paged || !viewer.isReady) return;
-    final fit = viewer.calcMatrixForFit(pageNumber: _gestureStartPage);
+    final fit = _baseFit(_gestureStartPage);
     if (fit != null && viewer.value.zoom > fit.zoom * 1.05) return;
-    final vx = velocity.pixelsPerSecond.dx;
+    var vx = velocity.pixelsPerSecond.dx;
+    // De lado a pessoa rola para baixo lendo: deslize torto não vira a página.
+    if (_wide && vx.abs() < velocity.pixelsPerSecond.dy.abs()) vx = 0;
     // Quanto a página andou, em fração da largura visível (+ = foi para a direita no documento).
     final visible = viewer.visibleRect;
     final start = _gestureStartCenter;
@@ -193,10 +217,31 @@ class ReaderController {
       target = _pageNearestToCenter() ?? _gestureStartPage;
     }
     final page = target.clamp(1, math.max(1, pageCount.value)).toInt();
+    if (page == _gestureStartPage && _wide && fit != null) {
+      _keepReadingPosition(page, fit.zoom);
+      return;
+    }
     // O pdfrx avisa o fim do gesto ANTES de começar a inércia; encaixar só
     // depois, senão a inércia atropela a animação e a página fica pela metade.
     Future<void>.delayed(Duration.zero, () => fitPage(page));
   }
+
+  /// De lado, rolar para cima/baixo é ler a mesma página: deixa a inércia
+  /// correr. Só recentraliza (mantendo a altura) se a página escorregou para o lado.
+  void _keepReadingPosition(int page, double zoom) {
+    final rect = viewer.layout.pageLayouts[page - 1];
+    final visible = viewer.visibleRect;
+    if ((visible.center.dx - rect.center.dx).abs() * zoom < 24) return;
+    final half = viewer.viewSize.height / 2 / zoom;
+    final top = rect.top - _margin + half;
+    final bottom = rect.bottom + _margin - half;
+    final y = top < bottom ? visible.center.dy.clamp(top, bottom) : rect.center.dy;
+    final matrix = viewer.calcMatrixFor(Offset(rect.center.dx, y), zoom: zoom);
+    Future<void>.delayed(Duration.zero, () => viewer.goTo(matrix, duration: const Duration(milliseconds: 220)));
+  }
+
+  /// Igual ao `margin` dos PdfViewerParams do leitor.
+  static const _margin = 12.0;
 
   static const _swipeVelocity = 250.0;
   static const _swipeFraction = 0.15;
@@ -270,8 +315,8 @@ class ReaderController {
     searchStatus.value = searcher.isSearching && total == 0
         ? 'Buscando…'
         : total == 0
-            ? 'Nada encontrado'
-            : '${(index ?? 0) + 1} de $total${searcher.isSearching ? '…' : ''}';
+        ? 'Nada encontrado'
+        : '${(index ?? 0) + 1} de $total${searcher.isSearching ? '…' : ''}';
   }
 
   /// Páginas lado a lado (rolagem horizontal), centralizadas na vertical.

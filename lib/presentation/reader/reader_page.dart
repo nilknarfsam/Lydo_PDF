@@ -4,6 +4,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 
@@ -37,10 +38,40 @@ const _nightFilter = ColorFilter.matrix(<double>[
 ]);
 
 // O leitor é sempre escuro, como na referência: o foco fica na página.
-const _bar = Color(0xFF1A2130);
-const _barBorder = Color(0xFF2C3546);
 const _onBar = Colors.white;
 const _onBarMuted = Color(0xFFA3ACBD);
+
+// Barras por cima do PDF: vidro fosco (translúcido + desfoque), a página aparece por trás.
+const _glass = Color(0xC71A2130);
+const _glassBorder = Color(0x80394357);
+
+/// Fundo de vidro fosco das barras do leitor.
+class _Glass extends StatelessWidget {
+  const _Glass({required this.child, this.radius = 18, this.color = _glass, this.border = true});
+  final Widget child;
+  final double radius;
+  final Color color;
+  final bool border;
+
+  @override
+  Widget build(BuildContext context) {
+    final shape = BorderRadius.circular(radius);
+    return ClipRRect(
+      borderRadius: shape,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: shape,
+            border: border ? Border.all(color: _glassBorder) : null,
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
 
 class ReaderPage extends StatefulWidget {
   const ReaderPage({
@@ -72,11 +103,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _c = ReaderController(
-      entry: widget.entry,
-      repository: widget.repository,
-      settings: widget.settings.settings.value,
-    );
+    _c = ReaderController(entry: widget.entry, repository: widget.repository, settings: widget.settings.settings.value);
     _a = AnnotationController(documentId: widget.entry.id, repository: widget.annotationRepository)
       ..onChanged = () {
         _images.ensureLoaded(_a.annotations.value, onLoaded: _repaintPages);
@@ -134,12 +161,7 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   Future<void> _editAnnotation(Annotation a) async {
     if (_a.tool.value == AnnotationTool.eraser) return _a.remove(a);
     final note = a.type == AnnotationType.note;
-    final r = await _askText(
-      title: note ? 'Nota' : 'Texto',
-      initial: a.text,
-      multiline: note,
-      canDelete: true,
-    );
+    final r = await _askText(title: note ? 'Nota' : 'Texto', initial: a.text, multiline: note, canDelete: true);
     if (r == null) return;
     if (r.delete) return _a.remove(a);
     if (r.text != null) _a.updateText(a, r.text!);
@@ -154,13 +176,8 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   }) {
     return showDialog<({String? text, bool delete})>(
       context: context,
-      builder: (_) => _TextDialog(
-        title: title,
-        initial: initial,
-        hint: hint,
-        multiline: multiline,
-        canDelete: canDelete,
-      ),
+      builder: (_) =>
+          _TextDialog(title: title, initial: initial, hint: hint, multiline: multiline, canDelete: canDelete),
     );
   }
 
@@ -433,7 +450,9 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
     if (count == 0) return _snack('Aguarde o PDF terminar de abrir.');
     final plan = await Navigator.push<PagePlan>(
       context,
-      MaterialPageRoute(builder: (_) => PageOrganizerPage(pdfPath: _c.entry.path, pageCount: count)),
+      MaterialPageRoute(
+        builder: (_) => PageOrganizerPage(pdfPath: _c.entry.path, pageCount: count),
+      ),
     );
     if (!mounted || plan == null || plan.isIdentity(count)) return;
 
@@ -467,26 +486,25 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       } catch (_) {}
     }
     if (!mounted) return;
-    unawaited(Navigator.pushReplacement(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => ReaderPage(
-          entry: updated,
-          repository: widget.repository,
-          annotationRepository: widget.annotationRepository,
-          signatureRepository: widget.signatureRepository,
-          settings: widget.settings,
+    unawaited(
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => ReaderPage(
+            entry: updated,
+            repository: widget.repository,
+            annotationRepository: widget.annotationRepository,
+            signatureRepository: widget.signatureRepository,
+            settings: widget.settings,
+          ),
         ),
       ),
-    ));
+    );
   }
 
   Future<void> _export() async {
     _c.editBusy.value = true;
-    final result = await _editService.exportWithAnnotations(
-      path: _c.entry.path,
-      annotations: _a.annotations.value,
-    );
+    final result = await _editService.exportWithAnnotations(path: _c.entry.path, annotations: _a.annotations.value);
     if (!mounted) return;
     _c.editBusy.value = false;
     switch (result) {
@@ -516,8 +534,8 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
       layoutPages: _c.paged
           ? ReaderController.pagedLayout
           : _c.horizontal
-              ? ReaderController.horizontalLayout
-              : null,
+          ? ReaderController.horizontalLayout
+          : null,
       onInteractionStart: (_) => _c.onGestureStart(),
       onInteractionEnd: (details) => _c.onGestureEnd(details.velocity),
       onViewSizeChanged: (size, oldSize, _) => _c.onViewSizeChanged(size, oldSize),
@@ -623,85 +641,93 @@ class _Chrome extends StatelessWidget {
         final annotating = controller.mode.value != ReaderMode.read;
         // Em Anotar/Editar as miniaturas são opcionais e ficam por cima da barra de ferramentas.
         final thumbsOverTools = annotating && controller.toolThumbs.value;
+        // De lado a tela é baixa: barra e abas numa linha só, miniaturas menores.
+        final compact = MediaQuery.orientationOf(context) == Orientation.landscape;
+        final stripHeight = _ThumbnailStripState.heightFor(compact: compact);
+        final tabs = ValueListenableBuilder(
+          valueListenable: controller.searchOpen,
+          builder: (_, searching, _) => searching
+              ? const SizedBox.shrink()
+              : _ModeTabs(controller: controller, onSelected: onModeSelected, compact: compact),
+        );
+        final topBar = _TopBar(
+          controller: controller,
+          onAskPage: onAskPage,
+          onAskScrollMode: onAskScrollMode,
+          compact: compact,
+        );
         final toolbar = switch (controller.mode.value) {
           ReaderMode.annotate => AnnotationToolbar(controller: annotations, onMore: onMore),
           ReaderMode.edit => ListenableBuilder(
-              listenable: Listenable.merge(
-                [controller.pendingStamp, controller.movingImage, controller.editBusy],
-              ),
-              builder: (_, _) => EditToolbar(
-                onAction: onEditAction,
-                hint: controller.editHint,
-                busy: controller.editBusy.value,
-              ),
-            ),
+            listenable: Listenable.merge([controller.pendingStamp, controller.movingImage, controller.editBusy]),
+            builder: (_, _) =>
+                EditToolbar(onAction: onEditAction, hint: controller.editHint, busy: controller.editBusy.value),
+          ),
           ReaderMode.read => null,
         };
         return Stack(
-        children: [
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            left: 0,
-            right: 0,
-            top: visible ? 0 : -200,
-            child: RepaintBoundary(
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-                  child: Column(
-                    children: [
-                      _TopBar(controller: controller, onAskPage: onAskPage, onAskScrollMode: onAskScrollMode),
-                      const SizedBox(height: 10),
-                      ValueListenableBuilder(
-                        valueListenable: controller.searchOpen,
-                        builder: (_, searching, _) => searching
-                            ? const SizedBox.shrink()
-                            : _ModeTabs(controller: controller, onSelected: onModeSelected),
-                      ),
-                    ],
+          children: [
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              left: 0,
+              right: 0,
+              top: visible ? 0 : -200,
+              child: RepaintBoundary(
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                    child: compact
+                        ? Row(
+                            children: [
+                              Expanded(child: topBar),
+                              const SizedBox(width: 8),
+                              SizedBox(width: 360, child: tabs),
+                            ],
+                          )
+                        : Column(children: [topBar, const SizedBox(height: 10), tabs]),
                   ),
                 ),
               ),
             ),
-          ),
-          if (visible)
-            Positioned(
-              right: 16,
-              bottom: (annotating ? 172 : 140) + (thumbsOverTools ? _ThumbnailStripState.stripHeight : 0),
-              child: SafeArea(
-                child: Row(
-                  children: [
-                    if (annotating) ...[
-                      _ThumbsToggle(active: thumbsOverTools, onTap: controller.toggleToolThumbs),
-                      const SizedBox(width: 8),
+            if (visible)
+              Positioned(
+                right: 16,
+                bottom: (annotating ? 172 : stripHeight + 16) + (thumbsOverTools ? stripHeight : 0),
+                child: SafeArea(
+                  child: Row(
+                    children: [
+                      if (annotating) ...[
+                        _ThumbsToggle(active: thumbsOverTools, onTap: controller.toggleToolThumbs),
+                        const SizedBox(width: 8),
+                      ],
+                      _PagePill(controller: controller, onTap: onAskPage),
                     ],
-                    _PagePill(controller: controller, onTap: onAskPage),
-                  ],
+                  ),
                 ),
               ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              left: 0,
+              right: 0,
+              bottom: visible ? 0 : -260 - (thumbsOverTools ? stripHeight : 0),
+              child: RepaintBoundary(
+                child: toolbar == null
+                    ? _ThumbnailStrip(controller: controller, compact: compact)
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (thumbsOverTools)
+                            _ThumbnailStrip(controller: controller, safeBottom: false, compact: compact),
+                          toolbar,
+                        ],
+                      ),
+              ),
             ),
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            left: 0,
-            right: 0,
-            bottom: visible ? 0 : -260 - (thumbsOverTools ? _ThumbnailStripState.stripHeight : 0),
-            child: RepaintBoundary(
-              child: toolbar == null
-                  ? _ThumbnailStrip(controller: controller)
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (thumbsOverTools) _ThumbnailStrip(controller: controller, safeBottom: false),
-                        toolbar,
-                      ],
-                    ),
-            ),
-          ),
-        ],
-      );
+          ],
+        );
       },
     );
   }
@@ -763,10 +789,18 @@ class _TextDialogState extends State<_TextDialog> {
 }
 
 class _TopBar extends StatefulWidget {
-  const _TopBar({required this.controller, required this.onAskPage, required this.onAskScrollMode});
+  const _TopBar({
+    required this.controller,
+    required this.onAskPage,
+    required this.onAskScrollMode,
+    this.compact = false,
+  });
   final ReaderController controller;
   final VoidCallback onAskPage;
   final VoidCallback onAskScrollMode;
+
+  /// Celular de lado: barra mais baixa.
+  final bool compact;
 
   @override
   State<_TopBar> createState() => _TopBarState();
@@ -784,18 +818,15 @@ class _TopBarState extends State<_TopBar> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    return Container(
-      height: 60,
-      decoration: BoxDecoration(
-        color: _bar,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _barBorder),
-      ),
-      child: IconTheme(
-        data: const IconThemeData(color: _onBar),
-        child: ValueListenableBuilder<bool>(
-          valueListenable: c.searchOpen,
-          builder: (context, searching, _) => searching ? _searchRow(c) : _titleRow(c),
+    return SizedBox(
+      height: widget.compact ? 50 : 60,
+      child: _Glass(
+        child: IconTheme(
+          data: const IconThemeData(color: _onBar),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: c.searchOpen,
+            builder: (context, searching, _) => searching ? _searchRow(c) : _titleRow(c),
+          ),
         ),
       ),
     );
@@ -804,17 +835,13 @@ class _TopBarState extends State<_TopBar> {
   Widget _titleRow(ReaderController c) {
     return Row(
       children: [
-        IconButton(
-          tooltip: 'Voltar',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.maybePop(context),
-        ),
+        IconButton(tooltip: 'Voltar', icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.maybePop(context)),
         Expanded(
           child: Text(
             c.entry.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: _onBar, fontSize: 18, fontWeight: FontWeight.w700),
+            style: TextStyle(color: _onBar, fontSize: widget.compact ? 16 : 18, fontWeight: FontWeight.w700),
           ),
         ),
         IconButton(tooltip: 'Buscar no texto', icon: const Icon(Icons.search), onPressed: c.openSearch),
@@ -905,9 +932,12 @@ class _TopBarState extends State<_TopBar> {
 }
 
 class _ModeTabs extends StatelessWidget {
-  const _ModeTabs({required this.controller, required this.onSelected});
+  const _ModeTabs({required this.controller, required this.onSelected, this.compact = false});
   final ReaderController controller;
   final ValueChanged<ReaderMode> onSelected;
+
+  /// Celular de lado: abas mais baixas, na mesma linha da barra de cima.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -921,13 +951,16 @@ class _ModeTabs extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             onTap: () => onSelected(m),
             child: SizedBox(
-              height: 46,
+              height: compact ? 40 : 46,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 22, color: _onBar),
-                  const SizedBox(width: 10),
-                  Text(label, style: const TextStyle(color: _onBar, fontSize: 16, fontWeight: FontWeight.w600)),
+                  Icon(icon, size: compact ? 20 : 22, color: _onBar),
+                  SizedBox(width: compact ? 6 : 10),
+                  Text(
+                    label,
+                    style: TextStyle(color: _onBar, fontSize: compact ? 14 : 16, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
             ),
@@ -936,21 +969,19 @@ class _ModeTabs extends StatelessWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: _bar,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _barBorder),
-      ),
-      child: ValueListenableBuilder<ReaderMode>(
-        valueListenable: controller.mode,
-        builder: (_, current, _) => Row(
-          children: [
-            tab(ReaderMode.read, Icons.menu_book_outlined, 'Ler', current),
-            tab(ReaderMode.annotate, Icons.edit_outlined, 'Anotar', current),
-            tab(ReaderMode.edit, Icons.tune, 'Editar', current),
-          ],
+    return _Glass(
+      radius: 16,
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: ValueListenableBuilder<ReaderMode>(
+          valueListenable: controller.mode,
+          builder: (_, current, _) => Row(
+            children: [
+              tab(ReaderMode.read, Icons.menu_book_outlined, 'Ler', current),
+              tab(ReaderMode.annotate, Icons.edit_outlined, 'Anotar', current),
+              tab(ReaderMode.edit, Icons.tune, 'Editar', current),
+            ],
+          ),
         ),
       ),
     );
@@ -965,7 +996,7 @@ class _PagePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xE6343C4B),
+      color: const Color(0xC7343C4B),
       shape: const StadiumBorder(),
       child: InkWell(
         customBorder: const StadiumBorder(),
@@ -996,7 +1027,7 @@ class _ThumbsToggle extends StatelessWidget {
     return Tooltip(
       message: active ? 'Esconder miniaturas' : 'Mostrar miniaturas',
       child: Material(
-        color: active ? LydoColors.primary : const Color(0xE6343C4B),
+        color: active ? LydoColors.primary : const Color(0xC7343C4B),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -1013,8 +1044,11 @@ class _ThumbsToggle extends StatelessWidget {
 
 /// Faixa de miniaturas: a página atual fica destacada e centralizada.
 class _ThumbnailStrip extends StatefulWidget {
-  const _ThumbnailStrip({required this.controller, this.safeBottom = true});
+  const _ThumbnailStrip({required this.controller, this.safeBottom = true, this.compact = false});
   final ReaderController controller;
+
+  /// Celular de lado: faixa mais baixa, sobra mais tela para a página.
+  final bool compact;
 
   /// Falso quando a faixa fica em cima da barra de ferramentas (a barra já cuida da borda de baixo).
   final bool safeBottom;
@@ -1024,8 +1058,8 @@ class _ThumbnailStrip extends StatefulWidget {
 }
 
 class _ThumbnailStripState extends State<_ThumbnailStrip> {
-  static const stripHeight = 124.0;
-  static const _itemWidth = 72.0;
+  static double heightFor({required bool compact}) => compact ? 84.0 : 124.0;
+  double get _itemWidth => widget.compact ? 46.0 : 72.0;
   static const _gap = 12.0;
   final _scroll = ScrollController();
 
@@ -1057,13 +1091,15 @@ class _ThumbnailStripState extends State<_ThumbnailStrip> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    return Container(
-      color: const Color(0xF20D121B),
+    return _Glass(
+      radius: 0,
+      border: false,
+      color: const Color(0xBF0D121B),
       child: SafeArea(
         top: false,
         bottom: widget.safeBottom,
         child: SizedBox(
-          height: stripHeight,
+          height: heightFor(compact: widget.compact),
           child: ValueListenableBuilder<PdfDocument?>(
             valueListenable: c.document,
             builder: (context, doc, _) {
@@ -1074,7 +1110,7 @@ class _ThumbnailStripState extends State<_ThumbnailStrip> {
                 builder: (context, current, _) => ListView.separated(
                   controller: _scroll,
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: widget.compact ? 8 : 12),
                   itemCount: doc.pages.length,
                   separatorBuilder: (_, _) => const SizedBox(width: _gap),
                   itemBuilder: (context, i) {
@@ -1092,10 +1128,7 @@ class _ThumbnailStripState extends State<_ThumbnailStrip> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: active ? LydoColors.primary : Colors.transparent,
-                                    width: 3,
-                                  ),
+                                  border: Border.all(color: active ? LydoColors.primary : Colors.transparent, width: 3),
                                 ),
                                 clipBehavior: Clip.antiAlias,
                                 child: PdfPageView(document: doc, pageNumber: page, maximumDpi: 48),
@@ -1112,7 +1145,10 @@ class _ThumbnailStripState extends State<_ThumbnailStrip> {
                                 child: Text(
                                   '$page',
                                   style: const TextStyle(
-                                      color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
