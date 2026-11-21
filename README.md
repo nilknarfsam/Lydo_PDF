@@ -9,8 +9,8 @@ Feito em Flutter com o motor [pdfrx](https://pub.dev/packages/pdfrx) (PDFium, o 
 | Área | Recursos |
 |---|---|
 | **Biblioteca** | Continuar lendo, busca sem acentos, filtros Todos/Recentes/Favoritos, lista ou grade, renomear, remover |
-| **Leitor** | Retoma página, zoom e rolagem; busca no texto; miniaturas; página noturna; rolagem contínua ou horizontal |
-| **Anotar** | Realce que gruda no texto, caneta, texto, notas, borracha, desfazer/refazer, 4 cores e 3 espessuras |
+| **Leitor** | Retoma página, zoom e rolagem; busca no texto; miniaturas; página noturna; rolagem contínua, horizontal ou página por página; barras em vidro fosco; layout para celular de lado |
+| **Anotar** | Realce que gruda no texto, caneta, texto, notas, borracha, desfazer/refazer, 4 cores e 3 espessuras; com a ferramenta ativa, 2 dedos dão zoom |
 | **Editar** | Assinatura desenhada (salva para reusar), imagens, organizar páginas (girar, excluir, reordenar) |
 | **Exportar** | PDF com tudo gravado dentro: realce nativo do PDF e texto original continua pesquisável |
 | **Ajustes** | Tema claro/escuro/sistema, tamanho da interface, retomar última página, manter tela ligada |
@@ -22,6 +22,7 @@ Feito em Flutter com o motor [pdfrx](https://pub.dev/packages/pdfrx) (PDFium, o 
 | 1 | Biblioteca, leitor e ajustes | ✅ |
 | 2 | Modo Anotar | ✅ |
 | 3 | Modo Editar e exportar PDF | ✅ |
+| 3.5 | Polimento (versão 0.4.0) | ✅ |
 | 4+ | Abrir com outros apps, juntar/dividir, OCR, resumo com IA | 📋 planejado |
 
 ## Documentação
@@ -44,7 +45,15 @@ flutter pub get
 flutter run
 ```
 
-Requer Flutter 3.47+ e Android SDK. Detalhes em [docs/desenvolvimento.md](docs/desenvolvimento.md).
+Requer Flutter 3.50+ e Android SDK. Detalhes em [docs/desenvolvimento.md](docs/desenvolvimento.md).
+
+## Gerar versão release
+
+```bash
+flutter build apk --release
+```
+
+A release é assinada com a chave própria do Lydo (`android/key.properties`, fora do Git). Sem esse arquivo, o build usa a chave de debug. Como criar a chave e guardar o backup: [docs/desenvolvimento.md](docs/desenvolvimento.md#versão-release-e-chave-de-assinatura).
 
 ## Estrutura
 

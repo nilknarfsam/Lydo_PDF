@@ -5,8 +5,9 @@ Legenda: ✅ pronto · 📋 planejado.
 | Fase | Conteúdo | Commit(s) | Status |
 |---|---|---|---|
 | 1 | Biblioteca, leitor, busca, miniaturas e ajustes | `1a9b4cc` | ✅ pronto e instalado no celular |
-| 2 | Modo Anotar | `68403d6` | ✅ pronto, aguardando teste no celular |
-| 3 | Modo Editar e exportar PDF anotado | `5cd4604` | ✅ pronto e instalado, aguardando teste (a exportação ainda não rodou em aparelho) |
+| 2 | Modo Anotar | `68403d6` | ✅ pronto e testado no celular |
+| 3 | Modo Editar e exportar PDF anotado | `5cd4604` | ✅ pronto e testado no celular |
+| 3.5 | Polimento: confirmações, Anotar com dois dedos, miniaturas, barras, celular de lado, limpeza de imagens e chave de release | `1e4e4dc` a `a253d13` | ✅ concluída (versão 0.4.0) |
 | 4+ | Juntar/dividir, OCR, resumo com IA, "Abrir com" | — | 📋 ideias |
 
 ## Fase 1: biblioteca, leitor e ajustes ✅
@@ -63,6 +64,22 @@ Commit `5cd4604`: "Fase 3: modo Editar (assinatura, imagem, organizar páginas, 
 - **Exportar**: gera um PDF novo com as anotações e salva onde a pessoa escolher. Realces viram anotações nativas do PDF; caneta, texto, notas e imagens viram uma imagem transparente por página.
 - Ao fim da fase: 38 testes passando (`flutter test`) e `flutter analyze` sem avisos.
 
+## Fase 3.5: polimento ✅
+
+Antes da fase 4, o app foi deixado "redondinho" com uma rodada de ajustes. Commits principais: `1e4e4dc` (confirmação e limpeza), `f49ffd3` (chave de release), `31948c0` (Anotar e miniaturas), `0d7e7bb` (barras e celular de lado) e `a253d13` (miniaturas), além de `b0ce1bd` (pasta `backup_chave/` fora do Git).
+
+- **Página por página:** modo que mostra uma página inteira por vez, com deslize para trocar de página. Pode ser trocado direto no leitor (menu ⋮ → Modo de leitura).
+- **Organizar páginas:** pede confirmação ("Descartar mudanças?") ao voltar com mudanças não concluídas.
+- **Limpeza de imagens:** `StampCleanupService` apaga de `stamps/` o que nenhum PDF usa. Roda ao abrir o app e ao remover um PDF.
+- **Anotar:** com realce ou caneta ativos, 2 dedos dão zoom e rolam a página. O 1 dedo continua desenhando.
+- **Miniaturas em Anotar e Editar:** botão ao lado da pílula da página liga a faixa por cima da barra de ferramentas.
+- **Barras em vidro fosco** no leitor (barra de cima, abas, pílula da página e miniaturas).
+- **Celular de lado:** layout compacto, página encaixada pela largura ao girar e "Página por página" deitado com deslize para o lado.
+- **Assinatura do app:** chave de release própria (`lydo-release.jks`), lida de `android/key.properties`. Ver [Desenvolvimento](desenvolvimento.md#versão-release-e-chave-de-assinatura).
+- **Ambiente:** Flutter 3.50 e Android Gradle Plugin 9.1.1.
+- **Orquestração:** Antigravity (Gemini) e Codex (ChatGPT) entraram no fluxo. Ver [Orquestração com IA](orquestracao-ia.md).
+- Ao fim da fase: 43 testes passando (`flutter test`).
+
 ## Fase 4 e seguintes (planejado) 📋
 
 Ordem sugerida pela MEMORIA. Nada disso está implementado.
@@ -80,15 +97,11 @@ Copiadas da MEMORIA (seções 4 e 5).
 
 **Próximos passos imediatos**
 
-- Franklin testar as fases 2 e 3 no celular, principalmente **Exportar** e **Páginas**.
-- Pendências pequenas da revisão da fase 3:
-  - pedir confirmação ao sair do Organizar páginas com mudanças não salvas;
-  - limpar arquivos de `stamps/` que nenhuma anotação usa mais.
+- Editar: arrastar imagem ou assinatura com o dedo (hoje só pelo menu).
 
 **Dívidas técnicas e limitações**
 
-- Com uma ferramenta de anotação ativa, não dá para dar zoom com dois dedos (é preciso soltar a ferramenta).
-- As miniaturas ficam escondidas nos modos Anotar e Editar, porque a barra de ferramentas ocupa o lugar delas.
+- Com Realçar ou Caneta ativos, a pinça não tem inércia nem encaixe de página: a página fica onde parou.
 - Imagem e assinatura só são movidas, aumentadas ou diminuídas pelo menu (toque na imagem no modo Editar). Ainda não há arrastar com o dedo.
 - Notas no PDF exportado viram uma caixinha desenhada, e não a nota "pop-up" do PDF.
 - O app antigo "Leitor PDF" (`com.franklin.pdf_reader`) pode ainda estar instalado no celular e pode ser desinstalado.

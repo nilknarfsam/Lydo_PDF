@@ -64,12 +64,35 @@ Efeitos:
 - `onGestureStart`/`onGestureEnd` (ligados a `onInteractionStart`/`onInteractionEnd`): no fim do gesto, encaixa na próxima/anterior se a velocidade passar de 250 px/s ou o arrasto passar de 15% da largura visível; senão volta para a página mais próxima do centro. Com zoom acima de 105% do encaixe, não encaixa (dá para andar pela página ampliada).
 - O encaixe (`fitPage`, via `calcMatrixForFit`) é adiado um ciclo porque o pdfrx chama `onInteractionEnd` antes de começar a inércia.
 - Nesse modo o leitor sempre abre com a página salva inteira (a matriz não é usada). Miniaturas e "ir para página" também usam `fitPage`.
-- Girar o celular: `onViewSizeChanged` reencaixa a página atual.
+- Girar o celular: `onViewSizeChanged` reencaixa a página atual. Só reage quando a **orientação** muda; abrir o teclado não reencaixa a página.
+- Deitado (celular de lado), a página encaixa pela **largura**, começando do topo (`_baseFit`). Rolar para baixo continua lendo a mesma página (a inércia é livre; a página só é recentralizada se escorregou mais de 24 px para o lado). Deslizar para o lado troca de página, e só vale se o deslize for mais horizontal que vertical.
+- Em pé, continua mostrando a página inteira.
 - Trocar o modo sem sair do PDF: menu ⋮ → **Modo de leitura**. `ReaderController.changeScrollMode` muda o `scrollMode` (o `PdfViewer` refaz o layout sem recarregar) e volta para a página atual; a escolha também é salva nos Ajustes.
 
 ## Tela limpa
 
 - Tocar na página (modo Ler) esconde as barras do leitor, o indicador de página e as barras do Android (`SystemUiMode.immersiveSticky`). Outro toque traz tudo de volta. Ao sair do leitor volta `edgeToEdge`.
+
+## Celular de lado
+
+Com o celular deitado, o leitor usa um layout mais compacto:
+
+- A barra de cima e as abas Ler/Anotar/Editar ficam numa linha só (`compact`), e mais baixas.
+- As miniaturas ficam menores (84 px de altura).
+- **Rolagem contínua:** ao girar ou abrir deitado, a página é reencaixada pela largura, mantendo o trecho que estava sendo lido (`_fitWidthKeepingPlace`).
+- **Página por página:** ver a seção [Página por página](#página-por-página).
+
+Em pé, nada disso muda. Código: `ReaderController` (`_baseFit`, `_fitWidthKeepingPlace`, `onViewSizeChanged`).
+
+## Barras translúcidas
+
+As barras do leitor (superior, abas Ler/Anotar/Editar, pílula da página e faixa de miniaturas) têm efeito de **vidro fosco**: cor translúcida com desfoque do que está por baixo. Widget `_Glass` em `lib/presentation/reader/reader_page.dart`, com `BackdropFilter` (desfoque 14). A tela limpa continua escondendo essas barras.
+
+## Miniaturas em Anotar e Editar
+
+- Nos modos Anotar e Editar, a barra de ferramentas ocupa o lugar da faixa de miniaturas, que por isso fica escondida por padrão.
+- Um botão redondo ao lado da pílula do número da página liga e desliga a faixa, que aparece por cima da barra de ferramentas (`ReaderController.toolThumbs`).
+- A faixa tem largura fixa por item (`itemExtent`) e recentraliza na página atual ao girar o celular.
 
 ## Realce que gruda no texto
 
@@ -102,6 +125,14 @@ Controller: `AnnotationController` (`lib/presentation/reader/annotation_controll
 - **Borracha:** `eraseAt` apaga a anotação mais recente sob o toque. A tolerância depende do tipo: realces usam metade da tolerância, traços somam metade da espessura, e textos e notas aceitam até 24 pt do ponto de ancoragem.
 - **Desfazer e refazer:** duas pilhas de listas de anotações (`_undo` e `_redo`). Cada alteração grava a lista inteira no repositório.
 - **Limpar página:** pede confirmação e pode ser desfeito.
+
+**Gestos com Realçar ou Caneta ativos.** `AnnotationGestureLayer` (`lib/presentation/reader/annotation_layer.dart`) fica por cima do `PdfViewer` e engole os toques. É um `StatefulWidget` que usa `onScale*` e `pointerCount`:
+
+- 1 dedo desenha (ou realça).
+- 2 dedos dão zoom e rolam a página. A matriz nova vai para `PdfViewerController.value`, ajustada com `makeMatrixInSafeRange`.
+- Se o 2º dedo encosta durante um traço, o traço em andamento é descartado.
+- Depois de uma pinça, a ferramenta só volta a desenhar quando todos os dedos forem soltos.
+- Limitação: a pinça com ferramenta ativa não tem inércia nem encaixe de página. A página fica onde parou.
 
 Gravação: `JsonAnnotationRepository` (`lib/data/json_annotation_repository.dart`) escreve `<docs>/annotations/<id>.json` por `.tmp` e `rename`.
 
@@ -137,6 +168,8 @@ Ações na tela:
 - **Desfazer** giros e reordenações.
 - **Concluir** devolve o `PagePlan`. Se o plano for igual ao original (`isIdentity`), nada acontece.
 
+**Confirmação ao sair.** Ao voltar (seta ou gesto de voltar) com mudanças não concluídas, aparece o diálogo "Descartar mudanças?", com as opções "Continuar editando" e "Descartar". "Concluir" salva sem perguntar. Isso é feito com `PopScope` em `page_organizer_page.dart`.
+
 Aplicação, em `ReaderPage._organizePages`, nesta ordem:
 
 1. `saveNow()` grava a posição atual.
@@ -171,6 +204,13 @@ Limitações conhecidas:
 - Notas viram uma caixinha desenhada, e não a nota "pop-up" do PDF.
 - A exportação **ainda não foi testada em aparelho** e não tem teste automatizado.
 - O arquivo original **não é alterado**: a exportação gera um PDF novo.
+
+## Limpeza de imagens sem uso
+
+- `StampCleanupService.sweep()` (`lib/data/stamp_cleanup_service.dart`) apaga de `<docs>/stamps/` as imagens e assinaturas que nenhum JSON de anotações cita. A comparação é pelo nome do arquivo.
+- Segurança: se algum JSON de anotações não puder ser lido, **nada é apagado**.
+- Quando roda: ao abrir o app (sem esperar, em `main.dart`) e ao remover um PDF da biblioteca (`HomeController.cleanUnusedStamps`). Devolve `Result<int>` com a quantidade apagada.
+- Testado em `test/stamp_cleanup_test.dart`.
 
 ## Ver também
 

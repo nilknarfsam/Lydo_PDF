@@ -3,7 +3,7 @@
 > Leia isto **antes** de qualquer tarefa. Atualize as seções "Estado atual", "Próximos passos"
 > e "Histórico" **ao terminar** cada tarefa. Regras de código ficam no `CLAUDE.md`.
 
-_Última atualização: 2026-11-13 — modo "Página por página" + tela limpa; plano de polimento (fase 3.5)._
+_Última atualização: 2026-11-21 — fase 3.5 testada e aprovada pelo Franklin no celular; versão 0.4.0 na main._
 
 ---
 
@@ -12,16 +12,16 @@ _Última atualização: 2026-11-13 — modo "Página por página" + tela limpa; 
 | Fase | O quê | Status |
 |---|---|---|
 | 1 | Biblioteca, leitor que retoma a posição, busca, miniaturas, ajustes | ✅ pronto e instalado no celular |
-| 2 | Modo Anotar: realçar, caneta, texto, nota, borracha, desfazer | ✅ pronto, aguardando teste no celular |
-| 3 | Modo Editar: assinar, imagem, organizar páginas, exportar PDF anotado | ✅ pronto e instalado, **aguardando teste do Franklin** (exportação nunca rodou num aparelho) |
-| 3.5 | Polimento: página por página ✅, tela limpa ✅, demais itens em "Próximos passos" | 🚧 em andamento |
+| 2 | Modo Anotar: realçar, caneta, texto, nota, borracha, desfazer | ✅ pronto e testado no celular |
+| 3 | Modo Editar: assinar, imagem, organizar páginas, exportar PDF anotado | ✅ pronto e testado no celular |
+| 3.5 | Polimento: página por página, tela limpa, confirmar ao sair do Organizar, limpeza de stamps/, pinça com ferramenta ativa, miniaturas em Anotar/Editar, vidro fosco, leitura de lado, chave de release | ✅ aprovado pelo Franklin (v0.4.0). Só falta: arrastar imagem/assinatura com o dedo |
 | 4+ | Juntar/dividir, OCR, resumo com IA, "Abrir com" de outros apps | 📋 ideias |
 
 - **Testes:** 43 passando (`flutter test`). `flutter analyze` sem avisos. Flutter 3.50 → AGP 9.1.1 (`android/settings.gradle.kts`).
 - **Assinatura:** chave de release própria `C:\Users\nilkn\.lydo\lydo-release.jks` (alias `lydo`, `CN=Lydo`, SHA-256 `08d784c7…be64238`), lida de `android/key.properties` (fora do Git; modelo em `android/key.properties.example`). Sem o key.properties, a release cai na chave de debug. Criada com `tools/criar_chave_release.bat`. Em outro PC: copiar o .jks e o key.properties. Backup: pasta `backup_chave/` no projeto (fora do Git) → Franklin sobe para o Drive em "💻 Trabalho e Projetos / Lydo PDF / Chave de release (backup)" (pasta com acesso só dele). Release com essa chave instalada no celular em 2026-11-20.
 - **adb** não está no PATH: `$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe`.
 - **Último commit:** ver `git log -1`.
-- **Emulador para conferir telas:** AVD `Medium_Phone_API_36.1` (1080×2400, igual ao Moto Edge 20 do Franklin; densidade 400 via `adb shell wm density 400`). PDF de teste em `/sdcard/Download/teste_lydo.pdf`. No Git Bash use `MSYS_NO_PATHCONV=1` com `adb`.
+- **Emulador para conferir telas:** neste PC, AVD `MotoEdge20` (1080×2400, densidade 400, igual ao Moto Edge 20 do Franklin); no PC antigo era `Medium_Phone_API_36.1`. PDF de teste em `/sdcard/Download/teste_lydo.pdf`. No Git Bash use `MSYS_NO_PATHCONV=1` com `adb`.
 
 ## 2. Mapa do código (onde está cada coisa)
 
@@ -114,8 +114,9 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 3b. ✅ Ícone original: "B · Marcador" (página branca + fita laranja + ponto azul).
 3c. ✅ Versão **release** instalada no celular do Franklin.
 4. ✅ Organizar páginas pergunta "Descartar mudanças?" ao voltar com mudanças (`PopScope`); `StampCleanupService` limpa `stamps/` sem uso ao abrir o app e ao remover um PDF.
-5. ✅ (aguardando teste do Franklin) Anotar: dois dedos dão zoom/rolam mesmo com ferramenta ativa; botão de miniaturas ao lado da pílula da página em Anotar/Editar.
-6. Editar: arrastar imagem/assinatura com o dedo.
+5. ✅ Anotar: dois dedos dão zoom/rolam mesmo com ferramenta ativa; botão de miniaturas ao lado da pílula da página em Anotar/Editar.
+5a. ✅ Leitor: barras em vidro fosco; celular de lado com barra compacta e página pela largura (testado no emulador e aprovado no celular).
+6. **Próximo:** Editar: arrastar imagem/assinatura com o dedo (mexe em coordenadas do pdfrx → fica com o principal).
 
 **Fase 4 — recursos novos:** "Abrir com"/compartilhar de outros apps → juntar/dividir PDFs → OCR → resumo com IA.
 
@@ -142,4 +143,6 @@ Telas de referência do design: `*.png` na raiz (nome antigo nas imagens: "Forma
 | 2026-11-20 | Organizar: confirmar ao sair com mudanças; limpeza de stamps/ sem uso; AGP 9.1.1 para o Flutter 3.50; release compilada | `1e4e4dc` |
 | 2026-11-20 | Chave de release própria do Lydo (`tools/criar_chave_release.bat` + signingConfig no Gradle) | `f49ffd3` |
 | 2026-11-20 | Anotar: zoom com dois dedos com ferramenta ativa; miniaturas em Anotar/Editar; release instalada por cima no celular | `31948c0` |
-| 2026-11-21 | Leitor: barras em vidro fosco; layout compacto e página pela largura com o celular de lado; testado no emulador | (este commit) |
+| 2026-11-21 | Leitor: barras em vidro fosco; layout compacto e página pela largura com o celular de lado; testado no emulador | `0d7e7bb` |
+| 2026-11-21 | Miniaturas com largura fixa (recentralizam ao girar); testado com livros reais no emulador | `a253d13` |
+| 2026-11-21 | Fase 3.5 aprovada no celular; docs atualizadas (Haiku); v0.4.0; branches juntadas na main e enviadas ao GitHub | (este commit) |

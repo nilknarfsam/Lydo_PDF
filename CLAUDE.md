@@ -84,14 +84,17 @@ flutter test
 flutter build apk --debug
 ```
 
-Instalar no celular (aparelho real conectado por USB, id `0076070504`):
+Instalar no celular (aparelho real conectado por USB, id `0076070504`). O Franklin usa a **release**,
+assinada com a chave do Lydo (`android/key.properties`, fora do Git). O `adb` não está no PATH:
 
-```bash
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
+```powershell
+flutter build apk --release
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 0076070504 install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
+- A debug tem outra assinatura: não instala por cima da release (só desinstalando, o que apaga os dados).
+- Conferir telas no emulador `MotoEdge20` (ver `MEMORIA.md`), não no celular.
 - Não enviar arquivos para o celular nem tirar print dele sem o Franklin pedir.
-- A versão debug demora alguns segundos para abrir (tela preta no começo é normal).
 
 ## Armadilhas conhecidas
 
@@ -104,5 +107,6 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 - ✅ Fase 1: biblioteca, leitor (retomar posição, busca, miniaturas), ajustes.
 - ✅ Fase 2: Anotar (realçar no texto, caneta, texto, nota, borracha, desfazer).
 - ✅ Fase 3: Editar (imagem, assinar, organizar páginas) e exportar PDF com anotações.
+- ✅ Fase 3.5 (v0.4.0): polimento (pinça com ferramenta ativa, vidro fosco, leitura de lado, chave de release). Falta só arrastar imagem/assinatura com o dedo.
 - Documentação completa em `docs/` (manter atualizada a cada fase).
 - Depois: juntar/dividir, OCR, resumo com IA, abrir PDF por "Abrir com" de outros apps.

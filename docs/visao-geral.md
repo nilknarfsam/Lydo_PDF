@@ -27,9 +27,9 @@ Ser um **leitor leve, no estilo do Adobe Reader**, que **continua de onde você 
 
 | Parte | Tecnologia | Uso |
 |---|---|---|
-| Framework | Flutter 3.47 (Dart `^3.13.1`) | Interface e lógica do app |
+| Framework | Flutter 3.50 (Dart `^3.13.1`) | Interface e lógica do app |
 | Leitura e edição de PDF | `pdfrx` 2.12 sobre o **PDFium** (licença BSD) | Renderização, busca no texto, realce nativo e montagem do PDF exportado |
-| Interface | `material_ui` 1.10 | Widgets usados em todas as telas (o `pdfrx` exige este pacote no Flutter 3.47) |
+| Interface | `material_ui` 1.10 | Widgets usados em todas as telas (o `pdfrx` exige este pacote no Flutter 3.50) |
 | Arquivos | `file_picker`, `path_provider` | Seletor do Android e pastas do app |
 | Preferências | `shared_preferences` | Biblioteca, ajustes e posição de leitura |
 | Exportação (FFI) | `pdfium_dart`, `ffi` | Gravar anotações dentro do PDF |
@@ -56,7 +56,9 @@ Não há banco de dados, serviço de nuvem nem dependência de rede.
 - Zoom e rolagem.
 - Retomada exata: página, zoom e posição.
 - Busca no texto, com contagem ("3 de 12") e navegação entre resultados.
-- Miniaturas na parte de baixo, no modo Ler.
+- Miniaturas na parte de baixo, no modo Ler. Nos modos Anotar e Editar, a faixa de miniaturas abre por cima da barra de ferramentas.
+- Modo **Página por página**, que mostra uma página inteira por vez.
+- Barras em **vidro fosco** (translúcidas) e layout compacto com o celular de lado.
 - **Página noturna** (inverte as cores da página) pelo menu ⋮ do leitor.
 - **Ir para a página** pelo menu.
 - Toque na página mostra ou esconde as barras.
@@ -69,15 +71,16 @@ Não há banco de dados, serviço de nuvem nem dependência de rede.
 - **Nota**: anotação com texto de várias linhas.
 - **Borracha**: toque na anotação para apagá-la.
 - **Desfazer** e **refazer**.
-- **Mover a página**: solta a ferramenta para rolar e dar zoom.
+- **Mover a página**: com Realçar ou Caneta ativos, 2 dedos dão zoom e rolam a página (1 dedo desenha). Tocar de novo na ferramenta a solta, e a página volta ao gesto normal.
 - **Limpar anotações da página**, com confirmação (dá para desfazer).
 
 ### Editar
 
 - **Imagem**: coloca uma foto na página. Pode mover, aumentar, diminuir e excluir.
 - **Assinar**: desenha a assinatura com o dedo, salva para reutilizar e a coloca na página.
-- **Páginas**: gira, reordena e exclui páginas.
+- **Páginas**: gira, reordena e exclui páginas. Ao voltar com mudanças não concluídas, pede confirmação.
 - **Exportar**: gera um PDF novo com as anotações e as imagens, e você escolhe onde salvar.
+- Imagens e assinaturas que não estão mais em nenhum PDF são apagadas sozinhas do celular (ver [Funcionalidades](funcionalidades.md#limpeza-de-imagens-sem-uso)).
 
 ### Ajustes
 
@@ -103,4 +106,4 @@ A aba **Ferramentas** é uma vitrine: OCR, juntar e dividir PDFs, imagens para P
 
 ## Status
 
-Fases 1, 2 e 3 estão prontas. A fase 3 (exportação) ainda aguarda teste em aparelho real. Veja o roteiro completo em [Fases](fases.md).
+Fases 1, 2 e 3 estão prontas, e a fase 3.5 (polimento) está concluída. Versão atual: **0.4.0**, testada e aprovada no celular. Veja o roteiro completo em [Fases](fases.md).

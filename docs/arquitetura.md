@@ -30,7 +30,7 @@ Leitura do diagrama: a presentation e a data **dependem do domain**, e não o co
 
 ### Exceções conhecidas
 
-- **Serviços concretos usados pela presentation.** `PdfImportService`, `StampImportService` e `PdfEditService` ficam em `lib/data`, mas são chamados direto pelos controllers e pela página do leitor (sem contrato no domain). Os repositórios, ao contrário, sempre entram como interface.
+- **Serviços concretos usados pela presentation.** `PdfImportService`, `StampImportService`, `StampCleanupService` e `PdfEditService` ficam em `lib/data`, mas são chamados direto pelos controllers e pela página do leitor (sem contrato no domain). Os repositórios, ao contrário, sempre entram como interface.
 - **`core` depende de `domain`.** `core/annotation_renderer.dart` desenha `Annotation` e usa o `pdfrx`/Flutter, então `core` não é Flutter-free.
 - **`SharedPreferences` aparece em `main.dart`.** É a composição; fora dela, só `lib/data` deve tocar em preferências (regra do `CLAUDE.md`).
 
@@ -71,6 +71,7 @@ Baseado na seção 2 da [MEMORIA](../MEMORIA.md).
 | `cover_cache_service.dart` | Capa (página 1) de cada PDF guardada como PNG; gerada uma vez, depois só lida do disco. |
 | `pdf_edit_service.dart` | **Delicado (FFI PDFium):** `applyPagePlan` e `exportWithAnnotations`. |
 | `stamp_import_service.dart` | Fotos e assinaturas copiadas para `<docs>/stamps/`, com a proporção. |
+| `stamp_cleanup_service.dart` | `sweep()`: apaga de `stamps/` o que nenhum JSON de anotações cita. Se um JSON não puder ser lido, não apaga nada. |
 | `file_signature_repository.dart` | Assinaturas em PNG, em `<docs>/signatures/`. |
 
 ### `presentation/`
@@ -84,10 +85,10 @@ Baseado na seção 2 da [MEMORIA](../MEMORIA.md).
 | `tools/tools_page.dart` | Vitrine "em breve" da aba Ferramentas. |
 | `settings/settings_controller.dart` | Estado dos ajustes e acesso ao repositório. |
 | `settings/settings_page.dart` | Tela Ajustes. |
-| `reader/reader_controller.dart` | Página atual, busca (`PdfTextSearcher`), salvar posição, modo noturno e layout horizontal. |
-| `reader/reader_page.dart` | Leitor: barra superior, abas Ler/Anotar/Editar, miniaturas e diálogos. |
+| `reader/reader_controller.dart` | Página atual, busca (`PdfTextSearcher`), salvar posição, modo noturno, layouts (contínuo, horizontal e página por página), encaixe de página e miniaturas das ferramentas (`toolThumbs`). |
+| `reader/reader_page.dart` | Leitor: barra superior, abas Ler/Anotar/Editar, miniaturas e diálogos. Barras em vidro fosco (`_Glass`). |
 | `reader/annotation_controller.dart` | Ferramenta, cor, espessura, desfazer/refazer e o traço em andamento. |
-| `reader/annotation_layer.dart` | Overlays de texto e nota, gestos de desenho e barra do modo Anotar. |
+| `reader/annotation_layer.dart` | Overlays de texto e nota, `AnnotationGestureLayer` (desenho com 1 dedo, zoom com 2) e barra do modo Anotar. |
 | `reader/edit_toolbar.dart` | Barra do modo Editar (Imagem, Assinar, Páginas, Exportar). |
 | `edit/signature_pad_controller.dart` e `signature_pad_page.dart` | Tela de desenhar assinatura, com PNG 3x e fundo transparente. |
 | `edit/signature_picker_sheet.dart` | Escolher uma assinatura salva ou criar uma nova. |
@@ -98,6 +99,8 @@ Baseado na seção 2 da [MEMORIA](../MEMORIA.md).
 | Arquivo | Responsabilidade |
 |---|---|
 | `test/*.dart` | Testes unitários e de widget (ver [Desenvolvimento](desenvolvimento.md#testes)). |
+| `tools/criar_chave_release.bat` e `.ps1` | Cria a chave de release do Lydo (`lydo-release.jks`) e grava `android/key.properties`. Ver [Desenvolvimento](desenvolvimento.md#versão-release-e-chave-de-assinatura). |
+| `android/key.properties` e `key.properties.example` | Senha e caminho da chave de release. O `key.properties` fica fora do Git; o `.example` é o modelo. |
 | `*.png` na raiz | Telas de referência do design. Nas imagens, o nome antigo do app é "Forma PDF". |
 
 ## Padrões
@@ -135,7 +138,7 @@ O `id` de cada PDF é uma impressão digital do conteúdo (FNV-1a dos primeiros 
 | PDFs importados | `<docs>/pdfs/<id>.pdf` | PDF (cópia) | `PdfImportService`; também `applyPagePlan`, que cria `<id>_<timestamp>.pdf` |
 | Anotações de cada documento | `<docs>/annotations/<id>.json` | Lista JSON de `Annotation` | `JsonAnnotationRepository` |
 | Assinaturas salvas | `<docs>/signatures/<microssegundos>.png` | PNG com fundo transparente | `FileSignatureRepository` |
-| Cópias de imagens e assinaturas usadas | `<docs>/stamps/<microssegundos>.<ext>` | PNG ou JPG | `StampImportService` |
+| Cópias de imagens e assinaturas usadas | `<docs>/stamps/<microssegundos>.<ext>` | PNG ou JPG | `StampImportService`; limpeza por `StampCleanupService` |
 | Capas da biblioteca (cache) | `<docs>/covers/<nome-do-pdf>.png` | PNG 320 px de largura | `CoverCacheService` |
 
 `<docs>` é a pasta de documentos do app, obtida pelo `path_provider`.
