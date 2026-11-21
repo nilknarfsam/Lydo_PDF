@@ -1076,16 +1076,28 @@ class _ThumbnailStripState extends State<_ThumbnailStrip> {
     super.dispose();
   }
 
-  void _follow() {
+  @override
+  void didUpdateWidget(covariant _ThumbnailStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Girou o celular: as miniaturas mudaram de tamanho, recentraliza na página atual.
+    if (oldWidget.compact != widget.compact) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _follow(animate: false));
+    }
+  }
+
+  void _follow({bool animate = true}) {
     if (!_scroll.hasClients) return;
     final page = widget.controller.currentPage.value;
     final viewport = _scroll.position.viewportDimension;
-    final target = (page - 1) * (_itemWidth + _gap) - (viewport - _itemWidth) / 2;
-    _scroll.animateTo(
-      target.clamp(0, _scroll.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+    final target = (16 + (page - 1) * (_itemWidth + _gap) - (viewport - _itemWidth) / 2).clamp(
+      0.0,
+      _scroll.position.maxScrollExtent,
     );
+    if (!animate) {
+      _scroll.jumpTo(target);
+      return;
+    }
+    _scroll.animateTo(target, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
   }
 
   @override
@@ -1107,52 +1119,60 @@ class _ThumbnailStripState extends State<_ThumbnailStrip> {
               WidgetsBinding.instance.addPostFrameCallback((_) => _follow());
               return ValueListenableBuilder<int>(
                 valueListenable: c.currentPage,
-                builder: (context, current, _) => ListView.separated(
+                // Largura fixa por item (miniatura + vão): a posição de cada página sai da conta,
+                // sem a lista guardar posições antigas quando o tamanho muda ao girar o celular.
+                builder: (context, current, _) => ListView.builder(
                   controller: _scroll,
                   scrollDirection: Axis.horizontal,
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: widget.compact ? 8 : 12),
+                  padding: EdgeInsets.fromLTRB(16, widget.compact ? 8 : 12, 16 - _gap, widget.compact ? 8 : 12),
                   itemCount: doc.pages.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: _gap),
+                  itemExtent: _itemWidth + _gap,
                   itemBuilder: (context, i) {
                     final page = i + 1;
                     final active = page == current;
-                    return GestureDetector(
-                      onTap: () => c.goToPage(page),
-                      child: SizedBox(
-                        width: _itemWidth,
-                        child: Stack(
-                          alignment: Alignment.bottomCenter,
-                          children: [
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: active ? LydoColors.primary : Colors.transparent, width: 3),
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: PdfPageView(document: doc, pageNumber: page, maximumDpi: 48),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: active ? LydoColors.primary : const Color(0xCC4A5263),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  '$page',
-                                  style: const TextStyle(
+                    return Padding(
+                      padding: const EdgeInsets.only(right: _gap),
+                      child: GestureDetector(
+                        onTap: () => c.goToPage(page),
+                        child: SizedBox(
+                          width: _itemWidth,
+                          child: Stack(
+                            alignment: Alignment.bottomCenter,
+                            children: [
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: BoxDecoration(
                                     color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: active ? LydoColors.primary : Colors.transparent,
+                                      width: 3,
+                                    ),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: PdfPageView(document: doc, pageNumber: page, maximumDpi: 48),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: active ? LydoColors.primary : const Color(0xCC4A5263),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$page',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     );
